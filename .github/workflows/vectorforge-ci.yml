@@ -1,4 +1,4 @@
-name: VectorForge — isolated core tests
+name: VectorForge — isolated Linux core and GUI tests
 
 on:
   workflow_dispatch:
@@ -18,35 +18,54 @@ permissions:
 jobs:
   linux-core:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: projects/vectorforge-pro
     steps:
       - uses: actions/checkout@v4
-      - name: Install C++ dependencies
+
+      - name: Verify VectorForge sources are present
+        run: |
+          test -f CMakeLists.txt || {
+            echo "::error::First place the VectorForge source tree in projects/vectorforge-pro/."
+            exit 1
+          }
+
+      - name: Install native, testing and GUI dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libarchive-dev libssl-dev libxml2-dev libpng-dev libboost-dev
-      - name: Verify project sources exist
-        run: |
-          if [ ! -f CMakeLists.txt ]; then
-            echo "::error::VectorForge source files have not been placed in projects/vectorforge-pro/ yet."
-            exit 1
-          fi
-      - name: Configure and compile
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build libarchive-dev libssl-dev libxml2-dev libpng-dev \
+            libboost-json1.83-dev python3-venv python3-tk xvfb inkscape
+
+      - name: Configure and build C++20
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVFORGE_BUILD_QT=OFF
           cmake --build build --parallel 3
-      - name: Run native tests
+
+      - name: Native C++ tests
         run: ctest --test-dir build --output-on-failure
-      - name: Check bridge and importer tests
+
+      - name: Prepare isolated Python test environment
         run: |
-          python3 -m pip install --disable-pip-version-check --quiet --break-system-packages Pillow PyMuPDF || true
-          if [ -d compat ]; then
-            python3 -m unittest discover -s compat -p 'test_*.py'
-          fi
-      - name: Isolation check
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check \
+            -r studio/requirements.txt numpy cairosvg
+
+      - name: Studio IPC and importer integration tests
+        run: |
+          .venv/bin/python -m unittest discover -s studio/tests -p 'test_*.py' -v
+          VF_PROBE="$PWD/build/vforge_probe" .venv/bin/python \
+            -m unittest discover -s compat -p 'test_*.py' -v
+
+      - name: Native engine and actual Tk viewport smoke tests
+        run: |
+          xvfb-run -a .venv/bin/python studio/tests/gui_delta_smoke.py
+          xvfb-run -a .venv/bin/python studio/tests/gui_fast_overlay_smoke.py
+          xvfb-run -a .venv/bin/python studio/tests/gui_fx_smoke.py
+
+      - name: Repository isolation check
         run: |
           test ! -e ../../build
-          echo "MAKET-296 root build is untouched."
+          echo "Existing MAKET-296 build files remain untouched."
