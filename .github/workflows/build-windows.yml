@@ -35,6 +35,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Could not apply editor interaction fixes' }
           python -X utf8 scripts/prepare_assets.py
           if ($LASTEXITCODE -ne 0) { throw 'Could not add editable SVG element IDs' }
+      - name: Enable editable original vector text and validate multi-photo PDF
+        shell: pwsh
+        run: |
+          python -X utf8 patches/finish_editor_v7.py
+          if ($LASTEXITCODE -ne 0) { throw 'Editor finishing patch failed' }
       - name: Install Qt 6.8.3 and SVG
         uses: jurplel/install-qt-action@v4
         with:
