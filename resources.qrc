@@ -1,0 +1,14 @@
+<RCC>
+  <qresource prefix="/templates">
+    <file alias="overlay_00.svg">assets/templates/overlay_00.svg</file>
+    <file alias="overlay_01.svg">assets/templates/overlay_01.svg</file>
+    <file alias="overlay_02.svg">assets/templates/overlay_02.svg</file>
+    <file alias="overlay_03.svg">assets/templates/overlay_03.svg</file>
+    <file alias="overlay_04.svg">assets/templates/overlay_04.svg</file>
+    <file alias="overlay_05.svg">assets/templates/overlay_05.svg</file>
+    <file alias="overlay_06.svg">assets/templates/overlay_06.svg</file>
+    <file alias="overlay_07.svg">assets/templates/overlay_07.svg</file>
+    <file alias="overlay_08.svg">assets/templates/overlay_08.svg</file>
+    <file alias="overlay_09.svg">assets/templates/overlay_09.svg</file>
+  </qresource>
+</RCC>
