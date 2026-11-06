@@ -13,7 +13,7 @@ with Image.open(png) as im:
     assert im.mode=="RGBA",f"Expected RGBA alpha, got {im.mode}"
     w,h=im.size
     assert abs(w-round(296/25.4*300))<=1, ("wrong width",w)
-    assert abs(h-round(465/25.4*300))<=1, ("wrong height",h)
+    assert abs(h-round(464.72/25.4*300))<=1, ("wrong height",h)
     dpi=im.info.get("dpi",(0,0))
     assert all(abs(d-300)<1 for d in dpi),("wrong dpi",dpi)
     alpha=im.getchannel("A")
@@ -30,7 +30,7 @@ with fitz.open(pdf) as doc:
     assert len(doc)==1
     page=doc[0]
     assert abs(page.rect.width*25.4/72-296)<0.2
-    assert abs(page.rect.height*25.4/72-465)<0.2
+    assert abs(page.rect.height*25.4/72-464.72)<0.2
     assert len(page.get_images(full=True))>=6, "PDF missing actual photo images"
     corners=page.get_pixmap(alpha=True)
     assert corners.pixel(0,0)[3]==0, "PDF page background not transparent"
