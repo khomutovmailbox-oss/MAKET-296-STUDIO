@@ -96,6 +96,22 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Unable to install validation libraries' }
           python scripts/dtf_preflight.py audit_render
           if ($LASTEXITCODE -ne 0) { throw 'DTF preflight failed' }
+      - name: Launch native Qt window and capture first-run UI
+        shell: pwsh
+        run: |
+          @'
+          add_executable(MAKET296GuiSmoke scripts/gui_smoke.cpp src/model.cpp src/renderer.cpp src/window.cpp)
+          target_include_directories(MAKET296GuiSmoke PRIVATE src)
+          target_link_libraries(MAKET296GuiSmoke PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Svg)
+          '@ | Add-Content -Path CMakeLists.txt
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) { throw 'GUI test configuration failed' }
+          cmake --build build --target MAKET296GuiSmoke --parallel 4
+          if ($LASTEXITCODE -ne 0) { throw 'GUI test compilation failed' }
+          $env:QT_QPA_PLATFORM = 'windows'
+          $gui = Start-Process -FilePath (Resolve-Path 'build/MAKET296GuiSmoke.exe').Path -Wait -PassThru -NoNewWindow
+          if ($gui.ExitCode -ne 0) { throw "Native Qt GUI startup failed ($($gui.ExitCode))" }
+          if (-not (Test-Path 'audit_render/native_window.png')) { throw 'Native Qt UI screenshot missing' }
       - name: Upload 10 filled poster layouts and 20 photo-letter proofs
         uses: actions/upload-artifact@v4
         with:
