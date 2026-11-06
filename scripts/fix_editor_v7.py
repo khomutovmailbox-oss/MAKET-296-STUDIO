@@ -128,6 +128,6 @@ replace_once("src/window.cpp",
 
 replace_once("src/window.cpp",
     "    decorColorButton_->setEnabled(!decos.isEmpty());toggleVisibleButton_->setEnabled(any);deleteObjectButton_->setEnabled(any);",
-    "    bool hasHidden=false;for(int i:photos)if(i>=0&&i<design_.photos.size()&&!design_.photos[i].visible)hasHidden=true;for(int i:decos)if(i>=0&&i<design_.decorations.size()&&!design_.decorations[i].visible)hasHidden=true;\\n    decorColorButton_->setEnabled(!decos.isEmpty());toggleVisibleButton_->setText(hasHidden?\"Показать\":\"Скрыть\");toggleVisibleButton_->setEnabled(any);deleteObjectButton_->setEnabled(any);")
+    "    bool hasHidden=false;for(int i:photos)if(i>=0&&i<design_.photos.size()&&!design_.photos[i].visible)hasHidden=true;for(int i:decos)if(i>=0&&i<design_.decorations.size()&&!design_.decorations[i].visible)hasHidden=true;\n    decorColorButton_->setEnabled(!decos.isEmpty());toggleVisibleButton_->setText(hasHidden?\"Показать\":\"Скрыть\");toggleVisibleButton_->setEnabled(any);deleteObjectButton_->setEnabled(any);")
 
 print("Applied editor v7 follow-up fixes.")
