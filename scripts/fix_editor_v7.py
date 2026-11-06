@@ -116,4 +116,14 @@ replace_once("src/window.cpp",
     "connect(toggleVisibleButton_,&QPushButton::clicked,this,[this]{for(int i:canvas_->selectedDecorations())if(i>=0&&i<design_.decorations.size())design_.decorations[i].visible=!design_.decorations[i].visible;for(int i:canvas_->selectedPhotos())if(i>=0&&i<design_.photos.size())design_.photos[i].visible=!design_.photos[i].visible;modified();syncLayerList();});",
     "connect(toggleVisibleButton_,&QPushButton::clicked,this,[this]{bool show=false;for(int i:canvas_->selectedDecorations())if(i>=0&&i<design_.decorations.size()&&!design_.decorations[i].visible)show=true;for(int i:canvas_->selectedPhotos())if(i>=0&&i<design_.photos.size()&&!design_.photos[i].visible)show=true;for(int i:canvas_->selectedDecorations())if(i>=0&&i<design_.decorations.size())design_.decorations[i].visible=show;for(int i:canvas_->selectedPhotos())if(i>=0&&i<design_.photos.size())design_.photos[i].visible=show;modified();syncLayerList();syncObjectControls();});")
 
+replace_once("src/window.cpp",
+    "if(i==selected_){p.setBrush(QColor(\"#32d0b1\"));",
+    "if(i==selected_&&selectedPhotos_.size()==1){p.setBrush(QColor(\"#32d0b1\"));")
+replace_once("src/window.cpp",
+    "if(i==selectedDecoration_){p.setBrush(QColor(\"#32d0b1\"));",
+    "if(i==selectedDecoration_&&selectedDecorations_.size()==1){p.setBrush(QColor(\"#32d0b1\"));")
+replace_once("src/window.cpp",
+    "    if(type==0)canvas_->setPhotoSelection(photos,active);else if(type==1)canvas_->setDecorationSelection(decos,active);",
+    "    if(type<0){canvas_->setPhotoSelection({},-1);canvas_->setDecorationSelection({},-1);return;}\n    if(type==0)canvas_->setPhotoSelection(photos,active);else if(type==1)canvas_->setDecorationSelection(decos,active);")
+
 print("Applied editor v7 follow-up fixes.")
