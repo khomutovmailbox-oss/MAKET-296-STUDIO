@@ -57,4 +57,5 @@ one("scripts/check_editor_features.py",
         assert matches, ("No rendered pixels in photo rectangle",ph["rect"])
         colors.extend(matches)
     assert len(set(colors))>=3, ("Photo/overlay rendering unexpectedly flat",colors[:5])
+    ''')
 print("Editor finishing patch applied: individually editable original vector text overlays, crop controls, visual PDF photo test.")
