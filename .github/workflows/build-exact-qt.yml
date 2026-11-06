@@ -24,6 +24,14 @@ jobs:
           $vectors=Get-ChildItem 'assets/templates/overlay_*.svg'
           if ($vectors.Count -ne 10) { throw "Expected 10 vector artboards, found $($vectors.Count)" }
           Write-Host "Exact vector templates: $($vectors.Count)"
+      - name: Fix explicit Qt file-system header
+        shell: pwsh
+        run: |
+          $src = Get-Content 'src/renderer.cpp' -Raw -Encoding UTF8
+          if ($src -notmatch '#include <QDir>') {
+            $src = $src.Replace('#include <QCoreApplication>', "#include <QCoreApplication>`n#include <QDir>")
+            [System.IO.File]::WriteAllText((Resolve-Path 'src/renderer.cpp').Path, $src, [System.Text.UTF8Encoding]::new($false))
+          }
       - name: Install real Qt 6 for MSVC
         uses: jurplel/install-qt-action@v4
         with:
