@@ -1,0 +1,74 @@
+name: Build MAKET 296 — Qt 6 Windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'MAKET_296_QT6_АВТОСБОРКА_WINDOWS.zip'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 50
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Extract Qt 6 project archive
+        shell: pwsh
+        run: |
+          $archive = 'MAKET_296_QT6_АВТОСБОРКА_WINDOWS.zip'
+          if (-not (Test-Path -LiteralPath $archive)) { throw "Missing source archive $archive" }
+          Expand-Archive -LiteralPath $archive -DestinationPath . -Force
+          if (-not (Test-Path CMakeLists.txt)) { throw 'Missing CMakeLists.txt after extraction' }
+      - name: Install official Qt 6.8.3 with SVG
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          archives: 'qtbase qtsvg'
+          cache: true
+      - name: Initialize MSVC compiler
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Compile native Qt EXE
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
+          cmake --build build --parallel 4
+          if ($LASTEXITCODE -ne 0) { throw 'Qt compilation failed' }
+          if (-not (Test-Path build/MAKET_296_QT6.exe)) { throw 'No EXE found' }
+      - name: Smoke test PDF PNG SVG
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          New-Item -ItemType Directory -Force smoke | Out-Null
+          foreach ($ext in 'pdf','png','svg') {
+            & ./build/MAKET_296_QT6.exe --render-smoke "smoke/test_296.$ext"
+            if ($LASTEXITCODE -ne 0) { throw "Export $ext failed" }
+          }
+          python -m pip install --disable-pip-version-check --quiet Pillow PyMuPDF
+          if ($LASTEXITCODE -ne 0) { throw 'Test dependency installation failed' }
+          python scripts/check_exports.py smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Export dimensions/alpha validation failed' }
+      - name: Bundle EXE and Qt DLLs
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item build/MAKET_296_QT6.exe dist/MAKET_296_QT6.exe
+          windeployqt --release --compiler-runtime dist/MAKET_296_QT6.exe
+          if ($LASTEXITCODE -ne 0) { throw 'windeployqt failed' }
+          if (-not (Test-Path dist/platforms/qwindows.dll)) { throw 'Qt platform DLL missing' }
+          Copy-Item examples dist/examples -Recurse
+          Compress-Archive -Path dist/* -DestinationPath MAKET_296_QT6_Windows.zip -Force
+      - name: Upload Windows app
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAKET_296_QT6_Windows
+          path: MAKET_296_QT6_Windows.zip
+          retention-days: 14
+          if-no-files-found: error
