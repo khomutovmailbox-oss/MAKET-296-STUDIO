@@ -102,10 +102,10 @@ replace_once("src/renderer.cpp",
     "void renderEditableArtwork(QPainter &p,const Maket::Design &d,bool includeSvg=true){")
 replace_once("src/renderer.cpp",
     "        if(obj.kind==Maket::Decoration::SvgElement){",
-    "        if(obj.kind==Maket::Decoration::SvgElement && !includeSvg){p.restore();continue;}\\n        if(obj.kind==Maket::Decoration::SvgElement){")
+    "        if(obj.kind==Maket::Decoration::SvgElement && !includeSvg){p.restore();continue;}\n        if(obj.kind==Maket::Decoration::SvgElement){")
 replace_once("src/renderer.cpp",
-    "    if(d.letters) decorations(p,d);\\n    else if(!d.decorations.isEmpty()) renderEditableArtwork(p,d);\\n    else decorations(p,d);",
-    "    if(!d.decorations.isEmpty()) renderEditableArtwork(p,d,!d.letters);\\n    else decorations(p,d);")
+    "    if(d.letters) decorations(p,d);\n    else if(!d.decorations.isEmpty()) renderEditableArtwork(p,d);\n    else decorations(p,d);",
+    "    if(!d.decorations.isEmpty()) renderEditableArtwork(p,d,!d.letters);\n    else decorations(p,d);")
 replace_once("src/window.cpp",
     "        if(selectedDecoration_<0)return;",
     "        if(selectedDecoration_<0 || !selectedDecorations_.contains(dec))return;")
