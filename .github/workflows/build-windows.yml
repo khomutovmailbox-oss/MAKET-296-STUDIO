@@ -57,6 +57,11 @@ jobs:
         run: |
           python -X utf8 patches/v8_compiler_fixes.py
           if ($LASTEXITCODE -ne 0) { throw 'V8 compiler patch failed' }
+      - name: Fix visual contrast for white vector art in transparent editor preview
+        shell: pwsh
+        run: |
+          python -X utf8 patches/v8_canvas_contrast.py
+          if ($LASTEXITCODE -ne 0) { throw 'Editor preview contrast patch failed' }
       - name: Install Qt 6.8.3 and SVG
         uses: jurplel/install-qt-action@v4
         with:
