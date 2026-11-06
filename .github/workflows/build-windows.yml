@@ -57,9 +57,12 @@ jobs:
         run: |
           $env:QT_QPA_PLATFORM = 'offscreen'
           New-Item -ItemType Directory -Force smoke | Out-Null
+          # Windows GUI-subsystem EXEs must be explicitly awaited in PowerShell.
           foreach ($ext in @('pdf','png','svg')) {
-            & ./build/MAKET_296_QT6.exe --render-smoke "smoke/test_296.$ext"
-            if ($LASTEXITCODE -ne 0) { throw "Export failed: $ext" }
+            $out = "smoke/test_296.$ext"
+            $proc = Start-Process -FilePath (Resolve-Path './build/MAKET_296_QT6.exe').Path -ArgumentList @('--render-smoke', $out) -Wait -PassThru
+            if ($proc.ExitCode -ne 0) { throw "Export failed: $ext (exit $($proc.ExitCode))" }
+            if (-not (Test-Path $out)) { throw "Export failed: $ext (no output file)" }
           }
           python -m pip install --disable-pip-version-check --quiet Pillow PyMuPDF
           if ($LASTEXITCODE -ne 0) { throw 'Unable to install export validators' }
