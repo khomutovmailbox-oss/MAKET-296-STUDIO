@@ -17,7 +17,6 @@ replace("src/renderer.cpp", "if(!photo.isNull()){\n                p.save();\n  
     "if(!photo.isNull()){\n                p.save();\n                // Hard-edge rectangular clips prevent transparent pixels between photo tiles.\n                if(!d.letters)p.setRenderHint(QPainter::Antialiasing,false);\n                QPainterPath clipping;clipping.addRect(d.letters?slot.r.adjusted(-.45,-.45,.45,.45):slot.r);")
 replace("src/renderer.cpp", "QRectF dest=slot.r.adjusted(-.10,-.10,.10,.10);",
     "QRectF dest=d.letters?slot.r.adjusted(-.45,-.45,.45,.45):slot.r.adjusted(-.10,-.10,.10,.10);")
-replace("src/renderer.cpp", "    p.restore();\n    p.restore();\n    Q_UNUSED(H)", "    p.restore();\n    Q_UNUSED(H)")
 replace("src/renderer.cpp", "img.fill(Qt::transparent);img.setDotsPerMeterX",
     "img.fill(Qt::transparent);img.setColorSpace(QColorSpace(QColorSpace::SRgb));img.setDotsPerMeterX")
 print("DTF patches applied: no tile seams, >=0.62 mm decorative lines, corrected second ONLY YOU size, sRGB, painter state.")
