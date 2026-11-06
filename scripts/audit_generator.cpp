@@ -67,6 +67,16 @@ int main(int argc,char**argv){
    Maket::Design d=Maket::defaultDesign(2);d.letters=true;d.heightMm=340;d.word="MOM";
    d.letterStyle=style;d.letterFill=fill;d.photos.resize(Maket::photoSlots(d).size());
    for(int i=0;i<d.photos.size();i++)d.photos[i].path=images[(i+style*5)%images.size()];
+   if(fill==0){
+     const int outW=qRound(296.0/25.4*100),outH=qRound(d.heightMm/25.4*100);
+     QImage expected(outW,outH,QImage::Format_ARGB32_Premultiplied);expected.fill(Qt::transparent);
+     QPainter painter(&expected);painter.setRenderHint(QPainter::Antialiasing,true);
+     painter.scale(double(outW)/1000.0,double(outW)/1000.0);
+     painter.setPen(Qt::NoPen);painter.setBrush(Qt::white);
+     for(const auto &outline:Maket::letterPaths(d))painter.drawPath(outline);
+     painter.end();
+     if(!expected.save(QString("audit_render/letters/mask_s%1.png").arg(style),"PNG"))return 31;
+   }
    if(!save(QString("audit_render/letters/word_s%1_f%2.png").arg(style).arg(fill),d,100))return 30;
  }
  QFile metaFile("audit_render/layout.json");if(!metaFile.open(QIODevice::WriteOnly))return 40;
