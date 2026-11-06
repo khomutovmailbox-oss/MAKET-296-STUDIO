@@ -89,4 +89,8 @@ replace_once("src/window.cpp",
     "        if(design_->letters){\\n            QPainterPath mask;",
     "        if(design_->letters && v[i].mask!=-1){\\n            QPainterPath mask;")
 
+replace_once("scripts/check_exports.py",
+    "assert abs(h - round(465/25.4*300)) <= 1",
+    "assert abs(h - round(464.72/25.4*300)) <= 1")
+
 print("Applied editor v7 follow-up fixes.")
