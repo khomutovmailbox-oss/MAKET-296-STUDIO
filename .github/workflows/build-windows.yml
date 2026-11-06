@@ -83,6 +83,13 @@ jobs:
             resources.qrc
           retention-days: 7
           if-no-files-found: error
+      - name: Fix photo-letter masks and restore original dossier emblem
+        shell: pwsh
+        run: |
+          python -X utf8 patches/finish_word_masks_v9.py
+          if ($LASTEXITCODE -ne 0) { throw 'Letter mask fix failed' }
+          python -X utf8 patches/add_original_dossier_emblem_v9.py
+          if ($LASTEXITCODE -ne 0) { throw 'Dossier vector-layer fix failed' }
       - name: Install Qt 6.8.3 and SVG
         uses: jurplel/install-qt-action@v4
         with:
