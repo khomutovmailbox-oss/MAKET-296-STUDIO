@@ -75,7 +75,8 @@ jobs:
       - name: Test free photo objects, overlap, crop and editable layers
         shell: pwsh
         run: |
-          $env:QT_QPA_PLATFORM = 'offscreen'\n          New-Item -ItemType Directory -Force editor_smoke | Out-Null
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          New-Item -ItemType Directory -Force editor_smoke | Out-Null
           $test = Start-Process -FilePath (Resolve-Path './build/MAKET_296_QT6.exe').Path -ArgumentList @('--editor-smoke','editor_smoke') -Wait -PassThru -NoNewWindow
           if ($test.ExitCode -ne 0) { throw "Editor feature smoke test failed ($($test.ExitCode))" }
           python scripts/check_editor_features.py editor_smoke
