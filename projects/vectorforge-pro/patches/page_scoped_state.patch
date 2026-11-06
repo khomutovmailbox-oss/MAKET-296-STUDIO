@@ -1,0 +1,73 @@
+--- a/studio/live_editor.cpp
++++ b/studio/live_editor.cpp
+@@ -66,8 +66,37 @@
+    auto candidate=std::make_unique<vf::Session>(std::move(result.project));session=std::move(candidate);
+    return j::object{{"warnings",std::move(warns)}};
+   }
++  if(action=="status"){
++   // Lightweight status query: avoid serializing the entire document when
++   // checking for unsaved changes before Open/New.
++   return j::object{{"dirty",session->dirty()},
++       {"read_only",session->is_read_only()},{"reason",session->current().reason}};
++  }
+   if(action=="state"){
+-   return j::object{{"document",session->current().document},{"dirty",session->dirty()},
++   const auto& document=session->current().document;
++   auto page=str(cmd,"page");
++   if(page.empty()){
++    // Preserve original wire protocol for old front-ends and tests.
++    return j::object{{"document",document},{"dirty",session->dirty()},
++        {"read_only",session->is_read_only()},{"reason",session->current().reason}};
++   }
++   const auto& data=document.as_object();
++   const auto& pages=data.at("pages").as_array();
++   bool found=false;
++   for(const auto& p:pages)if(str(p.as_object(),"id")==page){found=true;break;}
++   if(!found && !pages.empty())page=str(pages.front().as_object(),"id");
++   j::array visible;
++   const auto& all=data.at("objects").as_array();
++   for(const auto& item:all){
++    if(str(item.as_object(),"page_id")==page)visible.emplace_back(item);
++   }
++   j::object scoped;
++   // Copy small metadata, never deep-copy all pages' objects just to discard them.
++   for(const auto& item:data){
++    if(item.key()!="objects")scoped[item.key()]=item.value();
++   }
++   scoped["objects"]=std::move(visible);
++   return j::object{{"document",std::move(scoped)},{"dirty",session->dirty()},
+        {"read_only",session->is_read_only()},{"reason",session->current().reason}};
+   }
+   if(action=="save"){
+--- a/studio/studio.py
++++ b/studio/studio.py
+@@ -350,7 +350,9 @@
+             return None
+ 
+     def snapshot(self):
+-        return self.engine.call('state')
++        # Only transfer objects visible on the current page; the C++ engine
++        # remains the sole owner of the complete multi-page document.
++        return self.engine.call('state',page=self.page)
+ 
+     def refresh(self,full=False):
+         try:self.data=self.snapshot()
+@@ -401,7 +403,8 @@
+                 self.tree.selection_set([id for id in ids if self.tree.exists(id)])
+             finally:self._changing_selection=False
+         self.update_properties()
+-        self.redraw_canvas()
++        # Selection affects only handles, not the page artwork.
++        self.redraw_overlay()
+ 
+     def update_layers(self):
+         self._changing_selection=True
+@@ -523,7 +526,7 @@
+         self.status.configure(text=text,fg='#ff9d9d' if error else '#b7cbd7')
+ 
+     def fail_if_unsaved(self):
+-        try:dirty=self.snapshot()['dirty']
++        try:dirty=self.engine.call('status')['dirty']
+         except Exception:return False
+         if not dirty:return True
+         ans=messagebox.askyesnocancel('Несохранённые изменения',
