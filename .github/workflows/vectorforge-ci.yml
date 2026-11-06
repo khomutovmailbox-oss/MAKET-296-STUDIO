@@ -1,0 +1,52 @@
+name: VectorForge — isolated core tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/vectorforge-bootstrap]
+    paths:
+      - 'projects/vectorforge-pro/**'
+      - '.github/workflows/vectorforge-ci.yml'
+  pull_request:
+    paths:
+      - 'projects/vectorforge-pro/**'
+      - '.github/workflows/vectorforge-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  linux-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: projects/vectorforge-pro
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install C++ dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libarchive-dev libssl-dev libxml2-dev libpng-dev libboost-dev
+      - name: Verify project sources exist
+        run: |
+          if [ ! -f CMakeLists.txt ]; then
+            echo "::error::VectorForge source files have not been placed in projects/vectorforge-pro/ yet."
+            exit 1
+          fi
+      - name: Configure and compile
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVFORGE_BUILD_QT=OFF
+          cmake --build build --parallel 3
+      - name: Run native tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Check bridge and importer tests
+        run: |
+          python3 -m pip install --disable-pip-version-check --quiet --break-system-packages Pillow PyMuPDF || true
+          if [ -d compat ]; then
+            python3 -m unittest discover -s compat -p 'test_*.py'
+          fi
+      - name: Isolation check
+        run: |
+          test ! -e ../../build
+          echo "MAKET-296 root build is untouched."
