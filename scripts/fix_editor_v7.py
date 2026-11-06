@@ -61,4 +61,11 @@ replace_once("src/window.cpp",
     "for(int i:ds)if(i>=0&&i<design_.decorations.size())design_.decorations.removeAt(i);QList<int> ps=canvas_->selectedPhotos();for(int i:ps)if(i>=0&&i<design_.photos.size())design_.photos[i].path.clear();",
     "for(int i:ds)if(i>=0&&i<design_.decorations.size()&&!design_.decorations[i].locked)design_.decorations.removeAt(i);QList<int> ps=canvas_->selectedPhotos();for(int i:ps)if(i>=0&&i<design_.photos.size()&&!design_.photos[i].locked)design_.photos[i].path.clear();")
 
+replace_once("src/window.cpp",
+    "design_.decorations.push_back(o);canvas_->setDecorationSelection({design_.decorations.size()-1},design_.decorations.size()-1);modified();syncLayerList();syncObjectControls();",
+    "design_.decorations.push_back(o);const int index=int(design_.decorations.size())-1;canvas_->setDecorationSelection({index},index);modified();syncLayerList();syncObjectControls();")
+replace_once("src/window.cpp",
+    "if(!design_.photos.isEmpty())canvas_->setPhotoSelection({design_.photos.size()-1},design_.photos.size()-1);",
+    "if(!design_.photos.isEmpty()){const int index=int(design_.photos.size())-1;canvas_->setPhotoSelection({index},index);}")
+
 print("Applied editor v7 follow-up fixes.")
