@@ -1,0 +1,20 @@
+{
+  "objects": 40000,
+  "queries": 600,
+  "index_build_ms": 91.527,
+  "indexed_pick": {
+    "median_ms": 0.01081,
+    "p95_ms": 0.01723
+  },
+  "linear_pick": {
+    "median_ms": 4.0503,
+    "p95_ms": 7.51523
+  },
+  "group_expansion": {
+    "median_ms": 0.00641,
+    "p95_ms": 0.01124
+  },
+  "median_pick_speedup": 374.8,
+  "matches_linear_reference": true,
+  "notes": "Sparse rectangular scene, Python 3, Linux; selection only, excludes total UI paint/IPC"
+}
