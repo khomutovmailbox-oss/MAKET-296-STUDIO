@@ -1,0 +1,41 @@
+name: Prepare Qt editor source snapshot
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-snapshot.yml'
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Expand exact reference sources
+        run: |
+          python - <<'PY'
+          from zipfile import ZipFile
+          ZipFile('MAKET_296_QT6_EXACT_SOURCE.zip').extractall('.')
+          PY
+      - name: Apply tested freeform editor patch
+        run: |
+          cat patches/editor_v7_diff/*.b64 | base64 -d | xz -d > editor_v7_src.patch
+          git apply --whitespace=nowarn editor_v7_src.patch
+          python3 -X utf8 scripts/fix_editor_v7.py
+          python3 -X utf8 scripts/prepare_assets.py
+          python3 -X utf8 patches/finish_editor_v7.py
+      - name: Pack exactly compiled source
+        run: |
+          python3 - <<'PY'
+          import zipfile,glob,os
+          paths=['CMakeLists.txt','README.md','resources.qrc']+glob.glob('src/*')+glob.glob('assets/templates/*')+glob.glob('scripts/*.py')+glob.glob('examples/*')
+          with zipfile.ZipFile('MAKET296_editor_current_sources.zip','w',compression=zipfile.ZIP_DEFLATED,compresslevel=8) as z:
+            for f in paths:
+              if os.path.isfile(f): z.write(f)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MAKET296_editor_current_sources
+          path: MAKET296_editor_current_sources.zip
+          retention-days: 7
