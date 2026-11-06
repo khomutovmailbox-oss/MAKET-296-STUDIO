@@ -1,0 +1,21 @@
+{
+  "environment": "Linux C++ Release, 60 runs",
+  "objects_total": 3250,
+  "objects_per_page": 650,
+  "pages": 5,
+  "full": {
+    "median_ms": 7.05,
+    "p95_ms": 9.371,
+    "json_bytes": 509676
+  },
+  "page": {
+    "median_ms": 1.515,
+    "p95_ms": 2.829,
+    "json_bytes": 127746
+  },
+  "status": {
+    "median_ms": 0.019,
+    "p95_ms": 0.077,
+    "json_bytes": 49
+  }
+}
