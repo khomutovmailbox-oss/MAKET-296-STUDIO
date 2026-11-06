@@ -41,11 +41,11 @@ jobs:
 
       - name: Configure and build C++20
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVFORGE_BUILD_QT=OFF
-          cmake --build build --parallel 3
+          cmake -S . -B .build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVFORGE_BUILD_QT=OFF
+          cmake --build .build --parallel 3
 
       - name: Native C++ tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir .build --output-on-failure
 
       - name: Prepare isolated Python test environment
         run: |
@@ -56,14 +56,14 @@ jobs:
       - name: Studio IPC and importer integration tests
         run: |
           .venv/bin/python -m unittest discover -s studio/tests -p 'test_*.py' -v
-          VF_PROBE="$PWD/build/vforge_probe" .venv/bin/python \
+          VF_PROBE="$PWD/.build/vforge_probe" .venv/bin/python \
             -m unittest discover -s compat -p 'test_*.py' -v
 
       - name: Native engine and actual Tk viewport smoke tests
         run: |
-          xvfb-run -a .venv/bin/python studio/tests/gui_delta_smoke.py
+          xvfb-run -a .venv/bin/python studio/tests/gui_spatial_smoke.py\n          xvfb-run -a .venv/bin/python studio/tests/gui_delta_smoke.py
           xvfb-run -a .venv/bin/python studio/tests/gui_fast_overlay_smoke.py
-          xvfb-run -a .venv/bin/python studio/tests/gui_fx_smoke.py
+          xvfb-run -a .venv/bin/python studio/tests/gui_fx_smoke.py\n          xvfb-run -a .venv/bin/python studio/tests/gui_preview_cache_smoke.py
 
       - name: Repository isolation check
         run: |
