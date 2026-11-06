@@ -20,3 +20,37 @@ replace("src/renderer.cpp", "QRectF dest=slot.r.adjusted(-.10,-.10,.10,.10);",
 replace("src/renderer.cpp", "img.fill(Qt::transparent);img.setDotsPerMeterX",
     "img.fill(Qt::transparent);img.setColorSpace(QColorSpace(QColorSpace::SRgb));img.setDotsPerMeterX")
 print("DTF patches applied: no tile seams, >=0.62 mm decorative lines, corrected second ONLY YOU size, sRGB, painter state.")
+
+
+replace("src/window.cpp", "    Design snapshot=design_;const int dpi=300;", """    // Fast DTF preflight using image headers only, without decoding full photographs.
+    if(ext=="png" || ext=="pdf") {
+        int missing=0, unreadable=0, lowRes=0;
+        double worstDpi=1000000.0;
+        const auto photoAreas=photoSlots(design_);
+        for(int i=0; i<photoAreas.size(); ++i) {
+            if(i>=design_.photos.size() || design_.photos[i].path.isEmpty()) { ++missing; continue; }
+            const auto &photo=design_.photos[i];
+            QImageReader reader(photo.path);
+            const QSize pixels=reader.size();
+            if(pixels.width()<=0 || pixels.height()<=0) { ++unreadable; continue; }
+            const double wIn=photoAreas[i].r.width()*WidthMm/LogicalW/25.4;
+            const double hIn=photoAreas[i].r.height()*WidthMm/LogicalW/25.4;
+            if(wIn<=0 || hIn<=0) continue;
+            double cw=pixels.width(), ch=pixels.height();
+            const double ratio=wIn/hIn;
+            if(cw/ch>ratio) cw=ch*ratio; else ch=cw/ratio;
+            cw/=std::max(1.0,photo.zoom); ch/=std::max(1.0,photo.zoom);
+            const double effectiveDpi=std::min(cw/wIn,ch/hIn);
+            if(effectiveDpi<300.0) { ++lowRes; worstDpi=std::min(worstDpi,effectiveDpi); }
+        }
+        if(missing || lowRes || unreadable) {
+            QString warning=QString("DTF-проверка (ширина 296 мм):\n\n"
+              "Пустых фотообластей: %1\nНе удалось прочитать фото: %2\n"
+              "Фото с эффективным разрешением ниже 300 dpi: %3")
+              .arg(missing).arg(unreadable).arg(lowRes);
+            if(lowRes) warning+=QString("\nМинимальное фактическое разрешение: %1 dpi").arg(qRound(worstDpi));
+            warning+="\n\nФайл может быть технически корректным, но качество DTF-печати не гарантировано. Продолжить?";
+            if(QMessageBox::warning(this,"Проверка перед DTF",warning,QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes) return;
+        }
+    }
+    Design snapshot=design_;const int dpi=300;""")
