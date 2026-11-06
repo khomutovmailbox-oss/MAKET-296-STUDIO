@@ -70,7 +70,7 @@ replace_once("src/window.cpp",
 
 main=Path("src/main.cpp").read_text(encoding="utf-8")
 if "#include <QFile>" not in main:
-    main=main.replace("#include <QFileInfo>","#include <QFileInfo>\\n#include <QFile>")
+    main=main.replace("#include <QFileInfo>","#include <QFileInfo>\n#include <QFile>")
 main=main.replace("        Maket::Design d=Maket::defaultDesign(2);",
 """        for(int t=0;t<10;++t){const auto probe=Maket::defaultDesign(t);if(probe.decorations.isEmpty())return 9;}
         Maket::Design d=Maket::defaultDesign(2);if(d.decorations.isEmpty())return 10;""")
