@@ -80,14 +80,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Audit configuration failed' }
           cmake --build build --target MAKET296Audit --parallel 4
           if ($LASTEXITCODE -ne 0) { throw 'Audit harness compilation failed' }
-          $env:QT_QPA_PLATFORM = 'offscreen'
+          $env:QT_QPA_PLATFORM = 'windows'
           $audit = Start-Process -FilePath (Resolve-Path 'build/MAKET296Audit.exe').Path -Wait -PassThru -NoNewWindow
           if ($audit.ExitCode -ne 0) { throw "Audit render failed ($($audit.ExitCode))" }
           if (-not (Test-Path 'audit_render/layout.json')) { throw 'Audit results missing' }
       - name: Upload 10 filled poster layouts and 20 photo-letter proofs
         uses: actions/upload-artifact@v4
         with:
-          name: MAKET_296_QT6_actual_render_audit
+          name: MAKET_296_QT6_windows_platform_audit
           path: audit_render/
           retention-days: 7
           if-no-files-found: error
