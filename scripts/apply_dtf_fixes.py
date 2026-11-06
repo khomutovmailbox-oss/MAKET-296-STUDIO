@@ -44,12 +44,12 @@ replace("src/window.cpp", "    Design snapshot=design_;const int dpi=300;", """ 
             if(effectiveDpi<300.0) { ++lowRes; worstDpi=std::min(worstDpi,effectiveDpi); }
         }
         if(missing || lowRes || unreadable) {
-            QString warning=QString("DTF-проверка (ширина 296 мм):\n\n"
-              "Пустых фотообластей: %1\nНе удалось прочитать фото: %2\n"
+            QString warning=QString("DTF-проверка (ширина 296 мм):\\n\\n"
+              "Пустых фотообластей: %1\\nНе удалось прочитать фото: %2\\n"
               "Фото с эффективным разрешением ниже 300 dpi: %3")
               .arg(missing).arg(unreadable).arg(lowRes);
-            if(lowRes) warning+=QString("\nМинимальное фактическое разрешение: %1 dpi").arg(qRound(worstDpi));
-            warning+="\n\nФайл может быть технически корректным, но качество DTF-печати не гарантировано. Продолжить?";
+            if(lowRes) warning+=QString("\\nМинимальное фактическое разрешение: %1 dpi").arg(qRound(worstDpi));
+            warning+="\\n\\nФайл может быть технически корректным, но качество DTF-печати не гарантировано. Продолжить?";
             if(QMessageBox::warning(this,"Проверка перед DTF",warning,QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes) return;
         }
     }
