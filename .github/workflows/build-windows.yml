@@ -31,6 +31,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Could not decompress editor source patch' }
           git apply --whitespace=nowarn editor_v7_src.patch
           if ($LASTEXITCODE -ne 0) { throw 'Could not apply editable editor patch' }
+          python -X utf8 scripts/fix_editor_v7.py
+          if ($LASTEXITCODE -ne 0) { throw 'Could not apply editor interaction fixes' }
           python -X utf8 scripts/prepare_assets.py
           if ($LASTEXITCODE -ne 0) { throw 'Could not add editable SVG element IDs' }
       - name: Install Qt 6.8.3 and SVG
@@ -73,7 +75,7 @@ jobs:
       - name: Test free photo objects, overlap, crop and editable layers
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force editor_smoke | Out-Null
+          $env:QT_QPA_PLATFORM = 'offscreen'`n          New-Item -ItemType Directory -Force editor_smoke | Out-Null
           $test = Start-Process -FilePath (Resolve-Path './build/MAKET_296_QT6.exe').Path -ArgumentList @('--editor-smoke','editor_smoke') -Wait -PassThru -NoNewWindow
           if ($test.ExitCode -ne 0) { throw "Editor feature smoke test failed ($($test.ExitCode))" }
           python scripts/check_editor_features.py editor_smoke
