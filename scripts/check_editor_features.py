@@ -7,6 +7,7 @@ root=Path(sys.argv[1]);project=json.loads((root/"editor_test.maket.json").read_t
 photos=project["photos"];assert len(photos)>=3
 assert all(len(p.get("rect",[]))==4 for p in photos[:3])
 assert photos[1]["z"]>photos[0]["z"] and photos[1]["zoom"]>1
+assert max(p["rect"][3] for p in photos[:3])-min(p["rect"][3] for p in photos[:3])<0.01, "multi-select common height was not applied"
 a,b=photos[0]["rect"],photos[1]["rect"]
 assert a[0]<b[0]+b[2] and b[0]<a[0]+a[2],"fixture photos must overlap"
 assert any(x.get("kind")==1 and x.get("text")=="РЕДАКТИРУЕМАЯ НАДПИСЬ" for x in project["decorations"])
