@@ -54,7 +54,7 @@ replace_one("src/renderer.cpp",
     if(d.letters){
         QPainterPath wordOutline;wordOutline.setFillRule(Qt::WindingFill);
         for(const QPainterPath &glyph:glyphs)wordOutline.addPath(glyph);
-        p.setClipPath(wordOutline,Qt::IntersectClip);
+        p.setClipPath(wordOutline,Qt::ReplaceClip);
     }
     for(int i:photoOrder){""")
 
