@@ -1,0 +1,345 @@
+--- a/src/window.cpp
++++ b/src/window.cpp
+@@ -49,6 +49,12 @@
+ #include <QVBoxLayout>
+ #include <QWheelEvent>
+ #include <QLineF>
++#include <QCoreApplication>
++#include <QShortcut>
++#include <QKeyEvent>
++#include <QImage>
++#include <QJsonDocument>
++#include <QKeySequence>
+ #include <limits>
+ #include <QtMath>
+ using namespace Maket;
+@@ -107,7 +113,7 @@
+ }
+ constexpr double UnitsPerMm=1000.0/296.0;
+ }
+-Canvas::Canvas(QWidget*parent):QWidget(parent){setAcceptDrops(true);setMouseTracking(true);setCursor(Qt::CrossCursor);setAttribute(Qt::WA_OpaquePaintEvent);}
++Canvas::Canvas(QWidget*parent):QWidget(parent){setAcceptDrops(true);setMouseTracking(true);setCursor(Qt::CrossCursor);setAttribute(Qt::WA_OpaquePaintEvent);setFocusPolicy(Qt::StrongFocus);}
+ void Canvas::setDesign(Design *d){design_=d;cache_.clear();selected_=-1;selectedDecoration_=-1;selectedPhotos_.clear();selectedDecorations_.clear();dragMode_=NoDrag;refresh();emit objectSelectionChanged();}
+ void Canvas::setScale(qreal s){scale_=qBound(.18,s,2.6);refresh();}
+ void Canvas::refresh(){
+@@ -169,6 +175,26 @@
+     p.fillRect(paper,QColor("#edf0f3"));
+     for(int r=0;r<qCeil(paper.height()/tile);r++)for(int c=0;c<qCeil(paper.width()/tile);c++)if((r+c)%2==1)p.fillRect(QRectF(paper.left()+c*tile,paper.top()+r*tile,tile,tile),QColor("#e1e5e9"));
+     p.translate(Margin,Margin);p.scale(scale_,scale_);Renderer::paint(p,*design_,true,selected_,&cache_);
++    // Reference photos and background are for alignment on the editor canvas ONLY.
++    // Renderer::exportFile is independent; the originals never enter DTF output.
++    if(showReference_ && !design_->letters){
++        if(cachedReferencePreset_!=design_->preset){
++            cachedReferencePreset_=design_->preset;
++            const QString path=QCoreApplication::applicationDirPath()+QString("/reference/ref_%1.jpg").arg(design_->preset,2,10,QLatin1Char('0'));
++            QImageReader reader(path);cachedReference_=reader.read();
++        }
++        if(!cachedReference_.isNull()){
++            p.save();p.setOpacity(referenceOpacity_/100.0);
++            p.setRenderHint(QPainter::SmoothPixmapTransform,true);
++            p.drawImage(QRectF(0,0,LogicalW,LogicalW*design_->heightMm/WidthMm),cachedReference_);
++            p.restore();
++            p.save();p.setPen(QColor("#ffdf74"));
++            p.setFont(QFont("Arial",13,QFont::Bold));
++            p.fillRect(QRectF(8,8,650,27),QColor(0,0,0,190));
++            p.drawText(QRectF(16,10,625,23),Qt::AlignLeft|Qt::AlignVCenter,"ЭТАЛОН PDF — только для сверки, не печатается");
++            p.restore();
++        }
++    }
+     p.save();p.setBrush(Qt::NoBrush);p.setPen(QPen(QColor("#32d0b1"),1.8/scale_,Qt::DashLine));
+     const auto frames=photoSlots(*design_);
+     for(int i:selectedPhotos_)if(i>=0&&i<frames.size()){
+@@ -187,6 +213,7 @@
+ }
+ void Canvas::mousePressEvent(QMouseEvent*e){
+     if(e->button()!=Qt::LeftButton||!design_)return;
++    setFocus(Qt::MouseFocusReason);
+     const QPointF q=canvasPoint(e->position().toPoint());const bool ctrl=e->modifiers()&Qt::ControlModifier;
+     int ph=slotAt(e->position().toPoint());int dec=decorationAt(e->position().toPoint());
+     if(cropMode_&&ph>=0){
+@@ -244,12 +271,37 @@
+     }
+     QWidget::wheelEvent(e);
+ }
++void Canvas::keyPressEvent(QKeyEvent*e){
++    if(!design_){QWidget::keyPressEvent(e);return;}
++    qreal dx=0,dy=0;
++    const qreal unit=1000.0/296.0;
++    const qreal distance=unit*((e->modifiers()&Qt::ShiftModifier)?10.0:((e->modifiers()&Qt::AltModifier)?0.1:1.0));
++    switch(e->key()){
++        case Qt::Key_Left:dx=-distance;break;
++        case Qt::Key_Right:dx=distance;break;
++        case Qt::Key_Up:dy=-distance;break;
++        case Qt::Key_Down:dy=distance;break;
++        default: QWidget::keyPressEvent(e);return;
++    }
++    bool modified=false;
++    const QVector<Slot> frames=photoSlots(*design_);
++    for(int i:selectedPhotos_)if(i>=0&&i<frames.size()&&!design_->photos[i].locked){
++        design_->photos[i].rect=frames[i].r.translated(dx,dy);
++        design_->photos[i].hasRect=true;modified=true;
++    }
++    for(int i:selectedDecorations_)if(i>=0&&i<design_->decorations.size()&&!design_->decorations[i].locked){
++        design_->decorations[i].rect.translate(dx,dy);modified=true;
++    }
++    if(modified){refresh();emit designChanged();e->accept();return;}
++    QWidget::keyPressEvent(e);
++}
+ void Canvas::dragEnterEvent(QDragEnterEvent*e){if(e->mimeData()->hasUrls())e->acceptProposedAction();}
+ void Canvas::dropEvent(QDropEvent*e){QStringList paths;for(const auto &url:e->mimeData()->urls())if(url.isLocalFile())paths<<url.toLocalFile();if(!paths.isEmpty()){int hit=slotAt(e->position().toPoint());emit filesDropped(paths,hit>=0?hit:-2);e->acceptProposedAction();}}
+ 
+ MainWindow::MainWindow(QWidget*parent):QMainWindow(parent),design_(defaultDesign(2)){
+     setWindowTitle("МАКЕТ 296 STUDIO  ·  Qt 6");setMinimumSize(1050,650);resize(1510,900);
+     setStyleSheet(css());buildUi();createTemplates();syncControls();
++    lastCommitted_=design_;updateHistoryButtons();
+     QTimer::singleShot(80,this,&MainWindow::fitCanvas);
+ }
+ void MainWindow::buildUi(){
+@@ -259,6 +311,8 @@
+     auto *hl=new QHBoxLayout(header);hl->setContentsMargins(21,8,21,8);hl->setSpacing(9);
+     QLabel *brand=label("M / 296");brand->setObjectName("brand");hl->addWidget(brand);
+     auto *subtitle=label("STUDIO   ·   Qt 6 desktop",true);hl->addWidget(subtitle);hl->addStretch(1);
++    undoButton_=button("↶");undoButton_->setToolTip("Отменить (Ctrl+Z)");hl->addWidget(undoButton_);
++    redoButton_=button("↷");redoButton_->setToolTip("Вернуть (Ctrl+Y)");hl->addWidget(redoButton_);
+     auto *newButton=button("Новый");hl->addWidget(newButton);
+     auto *openButton=button("Открыть проект");hl->addWidget(openButton);
+     auto *saveButton=button("Сохранить проект");hl->addWidget(saveButton);
+@@ -294,7 +348,7 @@
+     addTextButton_=button("+ Добавить надпись");layerLayout->addWidget(addTextButton_);
+     tabs_->addTab(layerPage,"Слои");
+     leftLayout->addWidget(tabs_,1);
+-    auto *hint=label("Прозрачный фон · ячейки без промежутков\nДвойной клик — заменить фото",true);leftLayout->addWidget(hint);
++    auto *hint=label("Ctrl+клик — группа · Alt+клик — фото под декором\nСтрелки — 1 мм · Alt+стрелки — 0,1 мм\nShift+стрелки — 10 мм · Ctrl+Z — отмена",true);leftLayout->addWidget(hint);
+     bl->addWidget(left_);
+     scroller_=new QScrollArea;scroller_->setWidgetResizable(false);scroller_->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+     canvas_=new Canvas;canvas_->setDesign(&design_);scroller_->setWidget(canvas_);bl->addWidget(scroller_,1);
+@@ -325,7 +379,8 @@
+     for(auto *sp:{xSpin_,ySpin_,wSpin_,hSpin_}){sp->setDecimals(2);sp->setRange(-500,2000);sp->setSingleStep(1);sp->setSuffix(" мм");}
+     geo->addWidget(label("X"),0,0);geo->addWidget(xSpin_,0,1);geo->addWidget(label("Y"),0,2);geo->addWidget(ySpin_,0,3);
+     geo->addWidget(label("Ширина"),1,0);geo->addWidget(wSpin_,1,1);geo->addWidget(label("Высота"),1,2);geo->addWidget(hSpin_,1,3);
+-    applyGeometryButton_=button("Применить X / Y / W / H",nullptr,true);geo->addWidget(applyGeometryButton_,2,0,1,4);rl->addWidget(geometryBox);
++    proportionsCheck_=new QCheckBox("Сохранить пропорции при изменении размера");geo->addWidget(proportionsCheck_,2,0,1,4);
++    applyGeometryButton_=button("Применить X / Y / W / H",nullptr,true);geo->addWidget(applyGeometryButton_,3,0,1,4);rl->addWidget(geometryBox);
+     auto *groupBox=new QGroupBox("Одинаковый размер для всех выделенных фото");auto *groupLayout=new QGridLayout(groupBox);
+     groupWidthSpin_=new QDoubleSpinBox;groupHeightSpin_=new QDoubleSpinBox;
+     groupWidthSpin_->setRange(1,296);groupHeightSpin_->setRange(1,1300);
+@@ -333,7 +388,24 @@
+     groupLayout->addWidget(label("Общая ширина"),0,0);groupLayout->addWidget(groupWidthSpin_,0,1);
+     groupLayout->addWidget(label("Общая высота"),1,0);groupLayout->addWidget(groupHeightSpin_,1,1);
+     applyGroupWidthButton_=button("Ширину всем");applyGroupButton_=button("Высоту всем",nullptr,true);
+-    groupLayout->addWidget(applyGroupWidthButton_,2,0);groupLayout->addWidget(applyGroupButton_,2,1);rl->addWidget(groupBox);
++    groupLayout->addWidget(applyGroupWidthButton_,2,0);groupLayout->addWidget(applyGroupButton_,2,1);
++    auto *alignment=new QGridLayout;
++    const QStringList labels={"⇤ Лево","↔ Центр","Право ⇥","⇡ Верх","↕ Центр","Низ ⇣"};
++    for(int axis=0;axis<6;++axis){
++        auto *b=button(labels[axis]);alignment->addWidget(b,axis/3,axis%3);
++        connect(b,&QPushButton::clicked,this,[this,axis]{alignSelected(axis);});
++    }
++    groupLayout->addWidget(label("Выровнять выделенные объекты:",true),3,0,1,2);
++    groupLayout->addLayout(alignment,4,0,1,2);
++    rl->addWidget(groupBox);
++    auto *referenceBox=new QGroupBox("Сверка с оригинальным PDF");auto*refLay=new QVBoxLayout(referenceBox);
++    referenceCheck_=new QCheckBox("Показывать эталон поверх макета");refLay->addWidget(referenceCheck_);
++    refLay->addWidget(label("Прозрачность эталона · только в редакторе",true));
++    referenceSlider_=slider(0,90,40);refLay->addWidget(referenceSlider_);
++    refLay->addWidget(label("Фон и чужие фотографии видны только для сравнения. В файлы для DTF эталон НЕ попадает.",true));
++    rl->addWidget(referenceBox);
++    connect(referenceCheck_,&QCheckBox::toggled,canvas_,&Canvas::setReferenceVisible);
++    connect(referenceSlider_,&QSlider::valueChanged,canvas_,&Canvas::setReferenceOpacity);
+     auto *decorBox=new QGroupBox("Редактирование декора и векторных элементов");auto *decorLayout=new QVBoxLayout(decorBox);
+     objectInfo_=label("Каждый декоративный слой можно перемещать, масштабировать, перекрашивать и скрывать. Для замены надписи введи текст ниже; очисти поле, чтобы вернуть оригинальный контур.",true);decorLayout->addWidget(objectInfo_);
+     decorTextEdit_=new QLineEdit;decorTextEdit_->setPlaceholderText("Текст вместо оригинального векторного элемента");decorLayout->addWidget(decorTextEdit_);
+@@ -391,7 +463,11 @@
+     connect(decorLockCheck_,&QCheckBox::toggled,this,[this](bool v){if(loading_)return;for(int i:canvas_->selectedDecorations())if(i>=0&&i<design_.decorations.size())design_.decorations[i].locked=v;for(int i:canvas_->selectedPhotos())if(i>=0&&i<design_.photos.size())design_.photos[i].locked=v;modified();});
+     connect(toggleVisibleButton_,&QPushButton::clicked,this,[this]{bool show=false;for(int i:canvas_->selectedDecorations())if(i>=0&&i<design_.decorations.size()&&!design_.decorations[i].visible)show=true;for(int i:canvas_->selectedPhotos())if(i>=0&&i<design_.photos.size()&&!design_.photos[i].visible)show=true;for(int i:canvas_->selectedDecorations())if(i>=0&&i<design_.decorations.size())design_.decorations[i].visible=show;for(int i:canvas_->selectedPhotos())if(i>=0&&i<design_.photos.size())design_.photos[i].visible=show;modified();syncLayerList();syncObjectControls();});
+     connect(deleteObjectButton_,&QPushButton::clicked,this,[this]{QList<int> ds=canvas_->selectedDecorations();std::sort(ds.begin(),ds.end(),std::greater<int>());for(int i:ds)if(i>=0&&i<design_.decorations.size()&&!design_.decorations[i].locked)design_.decorations.removeAt(i);QList<int> ps=canvas_->selectedPhotos();for(int i:ps)if(i>=0&&i<design_.photos.size()&&!design_.photos[i].locked)design_.photos[i].path.clear();canvas_->setPhotoSelection({},-1);modified();});
+-    connect(newButton,&QPushButton::clicked,this,[this]{design_=defaultDesign(design_.preset);projectPath_.clear();canvas_->setDesign(&design_);syncControls();statusMessage("Пустой макет создан");});
++    connect(newButton,&QPushButton::clicked,this,[this]{design_=defaultDesign(design_.preset);projectPath_.clear();canvas_->setDesign(&design_);syncControls();modified();statusMessage("Пустой макет создан");});
++    connect(undoButton_,&QPushButton::clicked,this,&MainWindow::undo);
++    connect(redoButton_,&QPushButton::clicked,this,&MainWindow::redo);
++    auto *undoShortcut=new QShortcut(QKeySequence::Undo,this);connect(undoShortcut,&QShortcut::activated,this,&MainWindow::undo);
++    auto *redoShortcut=new QShortcut(QKeySequence("Ctrl+Y"),this);connect(redoShortcut,&QShortcut::activated,this,&MainWindow::redo);
+     connect(openButton,&QPushButton::clicked,this,&MainWindow::openProject);
+     connect(saveButton,&QPushButton::clicked,this,[this]{saveProject();});
+     connect(pdf,&QPushButton::clicked,this,[this]{exportAs("pdf");});
+@@ -402,7 +478,9 @@
+     loading_=true;
+     for(const auto &pr:presets()){
+         Design d=defaultDesign(pr.id);
+-        QImage img=Renderer::preview(d,110);
++        const QString refPath=QCoreApplication::applicationDirPath()+QString("/reference/ref_%1.jpg").arg(pr.id,2,10,QLatin1Char('0'));
++        QImage img=QImageReader(refPath).read();
++        if(img.isNull())img=Renderer::preview(d,110);
+         QImage preview(110,110,QImage::Format_ARGB32);preview.fill(QColor("#e3e9ee"));
+         QPainter p(&preview);p.setRenderHint(QPainter::SmoothPixmapTransform);
+         QRectF target(9,4,92,100);QImage scaled=img.scaled(target.size().toSize(),Qt::KeepAspectRatio,Qt::SmoothTransformation);
+@@ -421,14 +499,14 @@
+         fresh.path=old.path;fresh.mono=old.mono;fresh.brightness=old.brightness;fresh.contrast=old.contrast;
+         fresh.zoom=old.zoom;fresh.shiftX=old.shiftX;fresh.shiftY=old.shiftY;fresh.z=i;
+     }
+-    design_=next;canvas_->setDesign(&design_);syncControls();fitCanvas();statusMessage("Загружена композиция: "+findPreset(id)->name);
++    design_=next;canvas_->setDesign(&design_);syncControls();fitCanvas();modified();statusMessage("Загружена композиция: "+findPreset(id)->name);
+ }
+ void MainWindow::switchMode(bool letters){
+     if(design_.letters==letters)return;
+     design_.letters=letters;
+     if(letters)design_.heightMm=340;
+     else if(const Preset*pr=findPreset(design_.preset))design_.heightMm=pr->height;
+-    resetPhotoFrames(design_);canvas_->setSelected(-1);syncControls();fitCanvas();
++    resetPhotoFrames(design_);canvas_->setSelected(-1);syncControls();fitCanvas();modified();
+ }
+ void MainWindow::syncControls(){
+     loading_=true;
+@@ -505,6 +583,12 @@
+     if(!photos.isEmpty()){auto frames=photoSlots(design_);for(int i:photos)if(i>=0&&i<frames.size()&&!design_.photos[i].locked){ids<<i;old<<frames[i].r;}}
+     else for(int i:decos)if(i>=0&&i<design_.decorations.size()&&!design_.decorations[i].locked){ids<<i;old<<design_.decorations[i].rect;}
+     if(old.isEmpty())return;QRectF group=old.first();for(int i=1;i<old.size();++i)group=group.united(old[i]);
++    if(old.size()==1 && proportionsCheck_ && proportionsCheck_->isChecked()){
++        const qreal ar=old.first().width()/qMax(1.0,old.first().height());
++        const qreal sw=qAbs(target.width()/qMax(1.0,old.first().width())-1.0);
++        const qreal sh=qAbs(target.height()/qMax(1.0,old.first().height())-1.0);
++        if(sw>=sh)target.setHeight(target.width()/ar);else target.setWidth(target.height()*ar);
++    }
+     const qreal sx=target.width()/qMax(1.0,group.width()),sy=target.height()/qMax(1.0,group.height());
+     for(int k=0;k<ids.size();++k){QRectF r=old[k];r=QRectF(target.left()+(r.left()-group.left())*sx,target.top()+(r.top()-group.top())*sy,r.width()*sx,r.height()*sy);
+         if(!photos.isEmpty()){design_.photos[ids[k]].rect=r;design_.photos[ids[k]].hasRect=true;}else design_.decorations[ids[k]].rect=r;
+@@ -519,6 +603,46 @@
+     else for(int i:decos)if(i>=0&&i<design_.decorations.size()&&!design_.decorations[i].locked)design_.decorations[i].rect=apply(design_.decorations[i].rect);
+     modified();syncObjectControls();
+ }
++void MainWindow::alignSelected(int axis){
++    QList<int> photos=canvas_->selectedPhotos(),decos=canvas_->selectedDecorations();
++    QVector<QRectF> rectangles;
++    const QVector<Slot> slots=photoSlots(design_);
++    if(!photos.isEmpty()){
++        for(int i:photos)if(i>=0&&i<slots.size())rectangles<<slots[i].r;
++    } else if(!decos.isEmpty()){
++        for(int i:decos)if(i>=0&&i<design_.decorations.size())rectangles<<design_.decorations[i].rect;
++    }
++    if(rectangles.size()<2)return;
++    QRectF group=rectangles[0];for(int i=1;i<rectangles.size();++i)group=group.united(rectangles[i]);
++    auto align=[&](QRectF r){
++        if(axis==0)r.moveLeft(group.left());
++        if(axis==1)r.moveCenter(QPointF(group.center().x(),r.center().y()));
++        if(axis==2)r.moveRight(group.right());
++        if(axis==3)r.moveTop(group.top());
++        if(axis==4)r.moveCenter(QPointF(r.center().x(),group.center().y()));
++        if(axis==5)r.moveBottom(group.bottom());
++        return r;
++    };
++    if(!photos.isEmpty())for(int i:photos)if(i>=0&&i<slots.size()&&!design_.photos[i].locked){design_.photos[i].rect=align(slots[i].r);design_.photos[i].hasRect=true;}
++    if(!decos.isEmpty())for(int i:decos)if(i>=0&&i<design_.decorations.size()&&!design_.decorations[i].locked)design_.decorations[i].rect=align(design_.decorations[i].rect);
++    modified();syncObjectControls();
++}
++void MainWindow::updateHistoryButtons(){
++    if(undoButton_)undoButton_->setEnabled(!undoHistory_.isEmpty());
++    if(redoButton_)redoButton_->setEnabled(!redoHistory_.isEmpty());
++}
++void MainWindow::undo(){
++    if(undoHistory_.isEmpty())return;
++    applyingHistory_=true;redoHistory_.push_back(design_);design_=undoHistory_.takeLast();
++    canvas_->setDesign(&design_);lastCommitted_=design_;syncControls();
++    applyingHistory_=false;updateHistoryButtons();statusMessage("Изменение отменено");
++}
++void MainWindow::redo(){
++    if(redoHistory_.isEmpty())return;
++    applyingHistory_=true;undoHistory_.push_back(design_);design_=redoHistory_.takeLast();
++    canvas_->setDesign(&design_);lastCommitted_=design_;syncControls();
++    applyingHistory_=false;updateHistoryButtons();statusMessage("Изменение возвращено");
++}
+ void MainWindow::moveSelectedLayers(bool front){
+     QList<int> photos=canvas_->selectedPhotos(),decos=canvas_->selectedDecorations();
+     if(!photos.isEmpty()){int maxz=std::numeric_limits<int>::min(),minz=std::numeric_limits<int>::max();for(const auto &p:design_.photos){maxz=qMax(maxz,p.z);minz=qMin(minz,p.z);}int z=front?maxz+1:minz-1;for(int i:photos)if(i>=0&&i<design_.photos.size()&&!design_.photos[i].locked)design_.photos[i].z=z++;}
+@@ -530,7 +654,18 @@
+     design_.decorations.push_back(o);const int index=int(design_.decorations.size())-1;canvas_->setDecorationSelection({index},index);modified();syncLayerList();syncObjectControls();
+ }
+ 
+-void MainWindow::modified(){canvas_->refresh();updateSizing();}
++void MainWindow::modified(){
++    if(!applyingHistory_){
++        const QByteArray prior=QJsonDocument(toJson(lastCommitted_,QDir::currentPath())).toJson(QJsonDocument::Compact);
++        const QByteArray current=QJsonDocument(toJson(design_,QDir::currentPath())).toJson(QJsonDocument::Compact);
++        if(prior!=current){
++            undoHistory_.push_back(lastCommitted_);
++            if(undoHistory_.size()>45)undoHistory_.removeFirst();
++            redoHistory_.clear();lastCommitted_=design_;updateHistoryButtons();
++        }
++    }
++    canvas_->refresh();updateSizing();
++}
+ void MainWindow::setPhoto(int index,const QString &file){
+     if(index<0 || index>=design_.photos.size())return;
+     QImageReader reader(file);if(!reader.canRead()){statusMessage("Не удалось прочитать: "+QFileInfo(file).fileName());return;}
+@@ -573,7 +708,8 @@
+     if(err.error!=QJsonParseError::NoError || !fromJson(json.object(),QFileInfo(path).absolutePath(),d)){
+         QMessageBox::warning(this,"Ошибка","Невозможно прочитать проект Qt 6.");return;
+     }
+-    design_=d;projectPath_=path;canvas_->setDesign(&design_);syncControls();fitCanvas();statusMessage("Открыт проект: "+QFileInfo(path).fileName());
++    design_=d;projectPath_=path;undoHistory_.clear();redoHistory_.clear();lastCommitted_=design_;
++    canvas_->setDesign(&design_);syncControls();fitCanvas();updateHistoryButtons();statusMessage("Открыт проект: "+QFileInfo(path).fileName());
+ }
+ void MainWindow::exportAs(const QString &ext){
+     if(ext=="png"||ext=="pdf"){
+--- a/src/window.h
++++ b/src/window.h
+@@ -6,6 +6,7 @@
+ #include <QWidget>
+ #include <QSet>
+ #include <QHash>
++#include <QImage>
+ class QCheckBox;class QComboBox;class QLineEdit;class QListWidget;class QPushButton;
+ class QScrollArea;class QSlider;class QSpinBox;class QDoubleSpinBox;class QTabWidget;class QLabel;
+ namespace Maket {
+@@ -25,6 +26,8 @@
+     void setDecorationSelection(const QList<int> &indices,int active=-1);
+     void setCropMode(bool enabled);
+     bool cropMode()const{return cropMode_;}
++    void setReferenceVisible(bool enabled){showReference_=enabled;update();}
++    void setReferenceOpacity(int opacity){referenceOpacity_=qBound(0,opacity,90);update();}
+     void refresh();
+ signals:
+     void selectionChanged(int index);
+@@ -40,6 +43,7 @@
+     void mouseReleaseEvent(QMouseEvent *) override;
+     void mouseDoubleClickEvent(QMouseEvent *) override;
+     void wheelEvent(QWheelEvent *) override;
++    void keyPressEvent(QKeyEvent *) override;
+     void dragEnterEvent(QDragEnterEvent *) override;
+     void dropEvent(QDropEvent *) override;
+ private:
+@@ -61,6 +65,10 @@
+     QHash<int,QRectF> dragDecorationRects_;
+     qreal shiftStartX_=0,shiftStartY_=0;
+     bool cropMode_=false;
++    bool showReference_=false;
++    int referenceOpacity_=40;
++    int cachedReferencePreset_=-1;
++    QImage cachedReference_;
+ };
+ class MainWindow : public QMainWindow {
+     Q_OBJECT
+@@ -80,7 +88,12 @@
+     QDoubleSpinBox *xSpin_=nullptr,*ySpin_=nullptr,*wSpin_=nullptr,*hSpin_=nullptr;
+     QDoubleSpinBox *groupWidthSpin_=nullptr,*groupHeightSpin_=nullptr;
+     QLineEdit *decorTextEdit_=nullptr;
+-    QSlider *opacitySlider_=nullptr;
++    QSlider *opacitySlider_=nullptr,*referenceSlider_=nullptr;
++    QCheckBox *referenceCheck_=nullptr,*proportionsCheck_=nullptr;
++    QPushButton *undoButton_=nullptr,*redoButton_=nullptr;
++    QVector<Design> undoHistory_,redoHistory_;
++    Design lastCommitted_;
++    bool applyingHistory_=false;
+     QCheckBox *decorLockCheck_=nullptr;
+     QSlider *brightSlider_=nullptr,*contrastSlider_=nullptr,*zoomSlider_=nullptr;
+     QCheckBox *monoCheck_=nullptr;
+@@ -102,6 +115,10 @@
+     void syncObjectControls();
+     void applyObjectGeometry();
+     void applyGroupGeometry(bool heightMode);
++    void alignSelected(int axis);
++    void undo();
++    void redo();
++    void updateHistoryButtons();
+     void setSelectionFromLayers();
+     void moveSelectedLayers(bool front);
+     void addTextDecoration();
