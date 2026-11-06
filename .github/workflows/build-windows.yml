@@ -144,6 +144,21 @@ jobs:
           path: audit_render/
           retention-days: 7
           if-no-files-found: error
+      - name: Verify v8 fine nudge and original-reference UI in native Windows Qt
+        shell: pwsh
+        run: |
+          @'
+          add_executable(MAKET296V8Smoke scripts/v8_editor_ui_smoke.cpp src/model.cpp src/renderer.cpp src/window.cpp resources.qrc)
+          target_include_directories(MAKET296V8Smoke PRIVATE src)
+          target_link_libraries(MAKET296V8Smoke PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Svg)
+          '@ | Add-Content -Path CMakeLists.txt
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) { throw 'V8 test config failed' }
+          cmake --build build --target MAKET296V8Smoke --parallel 4
+          if ($LASTEXITCODE -ne 0) { throw 'V8 test compile failed' }
+          $env:QT_QPA_PLATFORM='windows'
+          $test = Start-Process -FilePath (Resolve-Path 'build/MAKET296V8Smoke.exe').Path -Wait -PassThru -NoNewWindow
+          if ($test.ExitCode -ne 0) { throw "V8 UI test failed ($($test.ExitCode))" }
       - name: Bundle portable Windows app
         shell: pwsh
         run: |
