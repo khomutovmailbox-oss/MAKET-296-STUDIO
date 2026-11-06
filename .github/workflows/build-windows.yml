@@ -21,6 +21,16 @@ jobs:
           Expand-Archive -LiteralPath $zip.FullName -DestinationPath . -Force
           if (-not (Test-Path 'CMakeLists.txt')) { throw 'CMakeLists.txt not found after ZIP extraction' }
           if (-not (Test-Path 'src/main.cpp')) { throw 'Qt source code not found in ZIP' }
+      - name: Fix Qt keyword collision in archived C++ sources
+        shell: pwsh
+        run: |
+          # Qt defines "slots" as a C++ macro. The original project used
+          # slots() as a function name; MSVC consequently cannot parse it.
+          Get-ChildItem src -Recurse -File | Where-Object { $_.Extension -in '.cpp','.h' } | ForEach-Object {
+            $body = [System.IO.File]::ReadAllText($_.FullName)
+            $patched = [regex]::Replace($body, '\bslots\b', 'photoSlots')
+            if ($body -cne $patched) { [System.IO.File]::WriteAllText($_.FullName, $patched, [System.Text.UTF8Encoding]::new($false)) }
+          }
       - name: Install Qt 6.8.3 and SVG
         uses: jurplel/install-qt-action@v4
         with:
