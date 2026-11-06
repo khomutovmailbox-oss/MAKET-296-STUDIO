@@ -68,4 +68,18 @@ replace_once("src/window.cpp",
     "if(!design_.photos.isEmpty())canvas_->setPhotoSelection({design_.photos.size()-1},design_.photos.size()-1);",
     "if(!design_.photos.isEmpty()){const int index=int(design_.photos.size())-1;canvas_->setPhotoSelection({index},index);}")
 
+main=Path("src/main.cpp").read_text(encoding="utf-8")
+if "#include <QFile>" not in main:
+    main=main.replace("#include <QFileInfo>","#include <QFileInfo>\\n#include <QFile>")
+main=main.replace("        Maket::Design d=Maket::defaultDesign(2);",
+"""        for(int t=0;t<10;++t){const auto probe=Maket::defaultDesign(t);if(probe.decorations.isEmpty())return 9;}
+        Maket::Design d=Maket::defaultDesign(2);if(d.decorations.isEmpty())return 10;""")
+main=main.replace(
+    "for(int i=0;i<3;++i){d.photos[i].path=fixtures[i];d.photos[i].rect=QRectF(70+i*185,350+i*45,490,390);d.photos[i].hasRect=true;d.photos[i].z=i;d.photos[i].zoom=1.35+i*.2;d.photos[i].shiftX=(i-1)*.18;}",
+    """for(int i=0;i<3;++i){d.photos[i].path=fixtures[i];d.photos[i].rect=QRectF(70+i*185,350+i*45,490,330+i*30);d.photos[i].hasRect=true;d.photos[i].z=i;d.photos[i].zoom=1.35+i*.2;d.photos[i].shiftX=(i-1)*.18;}
+        const qreal commonHeight=240.0;
+        for(int i=0;i<3;++i){QRectF &r=d.photos[i].rect;const qreal factor=commonHeight/r.height();r.setWidth(r.width()*factor);r.setHeight(commonHeight);}""")
+main=main.replace("if(qAbs(roundTrip.photos[1].rect.height()-390)>0.01||roundTrip.photos[1].z!=5||roundTrip.photos[1].zoom<1.5)return 6;",
+    "if(qAbs(roundTrip.photos[1].rect.height()-240)>0.01||qAbs(roundTrip.photos[0].rect.height()-roundTrip.photos[2].rect.height())>0.01||roundTrip.photos[1].z!=5||roundTrip.photos[1].zoom<1.5)return 6;")
+Path("src/main.cpp").write_text(main,encoding="utf-8")
 print("Applied editor v7 follow-up fixes.")
