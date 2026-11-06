@@ -31,6 +31,11 @@ jobs:
             $patched = [regex]::Replace($body, '\bslots\b', 'photoSlots')
             if ($body -cne $patched) { [System.IO.File]::WriteAllText($_.FullName, $patched, [System.Text.UTF8Encoding]::new($false)) }
           }
+      - name: Apply DTF color, seam and stroke fixes
+        shell: pwsh
+        run: |
+          python scripts/apply_dtf_fixes.py
+          if ($LASTEXITCODE -ne 0) { throw 'DTF patch failed' }
       - name: Install Qt 6.8.3 and SVG
         uses: jurplel/install-qt-action@v4
         with:
@@ -84,10 +89,17 @@ jobs:
           $audit = Start-Process -FilePath (Resolve-Path 'build/MAKET296Audit.exe').Path -Wait -PassThru -NoNewWindow
           if ($audit.ExitCode -ne 0) { throw "Audit render failed ($($audit.ExitCode))" }
           if (-not (Test-Path 'audit_render/layout.json')) { throw 'Audit results missing' }
+      - name: Preflight actual 300-dpi DTF PNG PDF and SVG with filled photos
+        shell: pwsh
+        run: |
+          python -m pip install --quiet Pillow PyMuPDF
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to install validation libraries' }
+          python scripts/dtf_preflight.py audit_render
+          if ($LASTEXITCODE -ne 0) { throw 'DTF preflight failed' }
       - name: Upload 10 filled poster layouts and 20 photo-letter proofs
         uses: actions/upload-artifact@v4
         with:
-          name: MAKET_296_QT6_windows_platform_audit
+          name: MAKET_296_QT6_DTF_audited_renders
           path: audit_render/
           retention-days: 7
           if-no-files-found: error
