@@ -23,8 +23,8 @@ for style in range(5):
         weighted_coverage=ImageStat.Stat(ImageChops.multiply(expected,actual)).sum[0]/max(mask_sum,1)
         if leak_pixels>45:
             raise AssertionError(f"LETTER MASK LEAK: style={style} fill={fill} {leak_pixels} pixels outside letter outlines")
-        if weighted_coverage<0.78*255:
-            raise AssertionError(f"LETTER FILL MISSING: style={style} fill={fill} alpha coverage={weighted_coverage/255:.2%}")
-        results.append((style,fill,leak_pixels,round(weighted_coverage/255,3)))
+        if weighted_coverage<0.78:
+            raise AssertionError(f"LETTER FILL MISSING: style={style} fill={fill} alpha coverage={weighted_coverage:.2%}")
+        results.append((style,fill,leak_pixels,round(weighted_coverage,3)))
 print("PASS: 20 Qt photo-letter compositions have no visible pixels outside letter silhouettes")
 print(results)
