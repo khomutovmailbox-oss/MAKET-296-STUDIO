@@ -68,6 +68,29 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Unable to install export validators' }
           python scripts/check_exports.py smoke
           if ($LASTEXITCODE -ne 0) { throw 'Export dimensions or alpha verification failed' }
+      - name: Build Qt layout and DTF print audit
+        shell: pwsh
+        run: |
+          @'
+          add_executable(MAKET296Audit scripts/audit_generator.cpp src/model.cpp src/renderer.cpp)
+          target_include_directories(MAKET296Audit PRIVATE src)
+          target_link_libraries(MAKET296Audit PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Svg)
+          '@ | Add-Content -Path CMakeLists.txt
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) { throw 'Audit configuration failed' }
+          cmake --build build --target MAKET296Audit --parallel 4
+          if ($LASTEXITCODE -ne 0) { throw 'Audit harness compilation failed' }
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $audit = Start-Process -FilePath (Resolve-Path 'build/MAKET296Audit.exe').Path -Wait -PassThru -NoNewWindow
+          if ($audit.ExitCode -ne 0) { throw "Audit render failed ($($audit.ExitCode))" }
+          if (-not (Test-Path 'audit_render/layout.json')) { throw 'Audit results missing' }
+      - name: Upload 10 filled poster layouts and 20 photo-letter proofs
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAKET_296_QT6_actual_render_audit
+          path: audit_render/
+          retention-days: 7
+          if-no-files-found: error
       - name: Bundle portable Windows app
         shell: pwsh
         run: |
