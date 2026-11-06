@@ -83,11 +83,15 @@ main=main.replace("if(qAbs(roundTrip.photos[1].rect.height()-390)>0.01||roundTri
     "if(qAbs(roundTrip.photos[1].rect.height()-240)>0.01||qAbs(roundTrip.photos[0].rect.height()-roundTrip.photos[2].rect.height())>0.01||roundTrip.photos[1].z!=5||roundTrip.photos[1].zoom<1.5)return 6;")
 Path("src/main.cpp").write_text(main,encoding="utf-8")
 replace_once("src/renderer.cpp",
-    "                if(d.letters){\\n                    QPainterPath mask;",
-    "                if(d.letters && slot.mask!=-1){\\n                    QPainterPath mask;")
+    """                if(d.letters){
+                    QPainterPath mask;""",
+    """                if(d.letters && slot.mask!=-1){
+                    QPainterPath mask;""")
 replace_once("src/window.cpp",
-    "        if(design_->letters){\\n            QPainterPath mask;",
-    "        if(design_->letters && v[i].mask!=-1){\\n            QPainterPath mask;")
+    """        if(design_->letters){
+            QPainterPath mask;""",
+    """        if(design_->letters && v[i].mask!=-1){
+            QPainterPath mask;""")
 
 replace_once("scripts/check_exports.py",
     "assert abs(h - round(465/25.4*300)) <= 1",
