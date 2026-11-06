@@ -29,6 +29,16 @@ int main(int argc,char**argv){
    QString path=cwd.absoluteFilePath(QString("audit_render/source/photo_%1.jpg").arg(i+1,2,10,QLatin1Char('0')));
    if(!im.save(path,"JPEG",91))return 11;images<<path;
  }
+ QImage cutout(1000,1300,QImage::Format_ARGB32_Premultiplied);
+ cutout.fill(Qt::transparent);
+ QPainter cutPainter(&cutout);cutPainter.setRenderHint(QPainter::Antialiasing,true);
+ QPainterPath person;person.addEllipse(QRectF(330,90,340,340));
+ person.addRoundedRect(QRectF(210,410,580,820),180,130);
+ QLinearGradient grCut(100,90,890,1300);
+ grCut.setColorAt(0,QColor("#986182"));grCut.setColorAt(1,QColor("#2e416d"));
+ cutPainter.fillPath(person,grCut);cutPainter.end();
+ QString cutoutFile=cwd.absoluteFilePath("audit_render/source/foreground_alpha.png");
+ if(!cutout.save(cutoutFile,"PNG"))return 12;
  auto save=[&](QString path,const Maket::Design&d,int dpi)->bool{
    QString err; if(!Maket::Renderer::exportFile(path,d,dpi,&err)){
       qCritical().noquote()<<"Export error"<<path<<err;return false;
@@ -45,6 +55,7 @@ int main(int argc,char**argv){
    item["rectangles"]=rectangles;meta.append(item);
    if(!save(QString("audit_render/posters/empty_%1.png").arg(preset.id),d,96))return 20;
    for(int i=0;i<d.photos.size();i++)d.photos[i].path=images[(i+preset.id)%images.size()];
+   if((preset.id==4||preset.id==9)&&!d.photos.isEmpty())d.photos.last().path=cutoutFile;
    if(!save(QString("audit_render/posters/filled_%1.png").arg(preset.id),d,96))return 21;
    if(preset.id==2){
      if(!save("audit_render/dtf_296x465_300dpi.png",d,300))return 22;
