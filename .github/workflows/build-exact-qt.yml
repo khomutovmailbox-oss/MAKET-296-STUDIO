@@ -1,0 +1,122 @@
+name: Build MAKET 296 — exact PDF artwork (Qt 6)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'MAKET_296_QT6_EXACT_SOURCE.zip'
+      - '.github/workflows/build-exact-qt.yml'
+      - 'scripts/exact_layout_audit.cpp'
+permissions:
+  contents: read
+jobs:
+  windows-exact:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact Qt source archive
+        uses: actions/checkout@v4
+      - name: Extract exact PDF artwork and photo masks
+        shell: pwsh
+        run: |
+          Expand-Archive -LiteralPath 'MAKET_296_QT6_EXACT_SOURCE.zip' -DestinationPath . -Force
+          if (-not (Test-Path CMakeLists.txt)) { throw 'Missing CMakeLists' }
+          $vectors=Get-ChildItem 'assets/templates/overlay_*.svg'
+          if ($vectors.Count -ne 10) { throw "Expected 10 vector artboards, found $($vectors.Count)" }
+          Write-Host "Exact vector templates: $($vectors.Count)"
+      - name: Install real Qt 6 for MSVC
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          archives: 'qtbase qtsvg'
+          cache: true
+      - name: Prepare MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Compile portable Qt program
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0) { throw 'CMake configure failed' }
+          cmake --build build --parallel 4
+          if ($LASTEXITCODE -ne 0) { throw 'C++ compilation failed' }
+          if (-not (Test-Path 'build/MAKET_296_QT6.exe')) { throw 'Missing native EXE' }
+      - name: Check PDF PNG SVG basic output
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM='windows'
+          New-Item -ItemType Directory -Force smoke | Out-Null
+          foreach($ext in @('pdf','png','svg')){
+            $out="smoke/check_296.$ext"
+            $p=Start-Process -FilePath (Resolve-Path 'build/MAKET_296_QT6.exe').Path -ArgumentList @('--render-smoke',$out) -Wait -PassThru
+            if($p.ExitCode -ne 0 -or -not (Test-Path $out)) {throw "Smoke export failed: $ext"}
+          }
+      - name: Render all 10 original masks with numbered photo fixtures
+        shell: pwsh
+        run: |
+          @'
+          add_executable(MAKET296ExactAudit scripts/exact_layout_audit.cpp src/model.cpp src/renderer.cpp)
+          target_include_directories(MAKET296ExactAudit PRIVATE src)
+          target_link_libraries(MAKET296ExactAudit PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Svg)
+          '@ | Add-Content -Path CMakeLists.txt
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          if ($LASTEXITCODE -ne 0){throw 'Failed to configure visual audit'}
+          cmake --build build --target MAKET296ExactAudit --parallel 4
+          if($LASTEXITCODE -ne 0){throw 'Visual audit failed to compile'}
+          $env:QT_QPA_PLATFORM='windows'
+          $p=Start-Process -FilePath (Resolve-Path 'build/MAKET296ExactAudit.exe').Path -Wait -PassThru
+          if($p.ExitCode -ne 0){throw "Visual audit failed exit=$($p.ExitCode)"}
+          if(-not (Test-Path 'exact_audit/layout.json')){throw 'Audit output absent'}
+      - name: Print-size and transparency preflight
+        shell: pwsh
+        run: |
+          python -m pip install --quiet Pillow PyMuPDF
+          if($LASTEXITCODE -ne 0){throw 'Unable to install check tools'}
+          @'
+          import fitz
+          from PIL import Image
+          import json
+          with Image.open("exact_audit/DTF_GIRLFRIEND_296mm_300dpi.png") as im:
+              assert im.mode=="RGBA", im.mode
+              assert abs(im.size[0]-round(296/25.4*300))<=1, im.size
+              assert im.getchannel("A").getpixel((0,0))==0,"Background must be transparent"
+              print("PNG DTF",im.size,"RGBA",im.info.get("dpi"))
+          with fitz.open("exact_audit/DTF_GIRLFRIEND_296mm.pdf") as pdf:
+              w=pdf[0].rect.width*25.4/72
+              assert abs(w-296)<.2,w
+              print("PDF width",w)
+          rows=json.load(open("exact_audit/layout.json",encoding="utf-8"))
+          assert len(rows)==10
+          assert [r["slots"] for r in rows]==[1,7,8,5,1,2,1,5,14,2]
+          print("All photo mask counts and printed geometry verified")
+          '@ | python -
+          if($LASTEXITCODE -ne 0){throw 'DTF preflight rejected output'}
+      - name: Upload visual comparisons for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAKET296_Exact_Template_Proofs
+          path: exact_audit/
+          retention-days: 10
+      - name: Bundle native Windows Qt application
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item build/MAKET_296_QT6.exe dist/MAKET_296_QT6.exe
+          Copy-Item assets/templates dist/templates -Recurse
+          Copy-Item examples dist/examples -Recurse
+          Copy-Item README.md dist/README.txt
+          windeployqt --release --compiler-runtime dist/MAKET_296_QT6.exe
+          if($LASTEXITCODE -ne 0){throw 'windeployqt failed'}
+          if(-not (Test-Path dist/platforms/qwindows.dll)){throw 'Qt platform library absent'}
+          Compress-Archive -Path dist/* -DestinationPath MAKET296_EXACT_QT6_WINDOWS.zip -Force
+      - name: Upload portable Qt EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAKET296_EXACT_QT6_WINDOWS
+          path: MAKET296_EXACT_QT6_WINDOWS.zip
+          retention-days: 14
+          if-no-files-found: error
