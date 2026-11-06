@@ -47,6 +47,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'V8 source mismatch' }
           git apply --whitespace=nowarn patches/editor_v8_accuracy_and_ux.patch
           if ($LASTEXITCODE -ne 0) { throw 'V8 editor patch failed' }
+      - name: Keep original sample backgrounds out of library thumbnails
+        shell: pwsh
+        run: |
+          python -X utf8 patches/v8_template_thumbnails.py
+          if ($LASTEXITCODE -ne 0) { throw 'V8 thumbnail guard failed' }
       - name: Install Qt 6.8.3 and SVG
         uses: jurplel/install-qt-action@v4
         with:
