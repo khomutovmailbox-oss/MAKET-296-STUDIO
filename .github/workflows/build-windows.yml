@@ -36,6 +36,16 @@ jobs:
         run: |
           python scripts/apply_dtf_fixes.py
           if ($LASTEXITCODE -ne 0) { throw 'DTF patch failed' }
+      - name: Apply original-PDF measured layouts to Qt engine
+        shell: pwsh
+        run: |
+          python -c "import pathlib,base64,io,tarfile; data=base64.b64decode(pathlib.Path('patches/layout_patch_scripts.tar.xz.b64').read_text().strip()); tarfile.open(fileobj=io.BytesIO(data),mode='r:xz').extractall('.',filter='data')"
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to unpack precise layout code' }
+          python _rewrite_model.py
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to apply measured photo slots' }
+          python _rewrite_renderer.py
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to apply vector layout and photo silhouettes' }
+          if (-not (Select-String -Quiet -LiteralPath 'src/model.cpp' -Pattern 'add(.255,.251' -SimpleMatch)) { throw 'Precise cutout layout not installed' }
       - name: Install Qt 6.8.3 and SVG
         uses: jurplel/install-qt-action@v4
         with:
