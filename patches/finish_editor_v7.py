@@ -43,12 +43,18 @@ one("scripts/check_editor_features.py",
     '''    page=doc[0]
     image=page.get_pixmap(matrix=fitz.Matrix(1,1),alpha=True)
     board_h=1000*(page.rect.height/page.rect.width)
-    points=[(110,500),(620,415),(810,550)]
     colors=[]
-    for x,y in points:
-        col=image.pixel(min(image.width-1,int(x/1000*image.width)),
-                        min(image.height-1,int(y/board_h*image.height)))
-        assert len(col)>=4 and col[3]>200, ("photo area missing",x,y,col)
-        colors.append(col[:3])
-    assert len(set(colors))>=2, ("photo content absent or flat",colors)''')
+    for ph in photos[:3]:
+        x,y,w,h=ph["rect"]
+        matches=[]
+        for fx in (0.2,0.5,0.8):
+            for fy in (0.2,0.5,0.8):
+                sx=min(image.width-1,max(0,int((x+w*fx)/1000*image.width)))
+                sy=min(image.height-1,max(0,int((y+h*fy)/board_h*image.height)))
+                pixel=image.pixel(sx,sy)
+                if len(pixel)>=4 and pixel[3]>200:
+                    matches.append(pixel[:3])
+        assert matches, ("No rendered pixels in photo rectangle",ph["rect"])
+        colors.extend(matches)
+    assert len(set(colors))>=3, ("Photo/overlay rendering unexpectedly flat",colors[:5])
 print("Editor finishing patch applied: individually editable original vector text overlays, crop controls, visual PDF photo test.")
