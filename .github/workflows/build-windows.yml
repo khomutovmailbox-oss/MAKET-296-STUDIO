@@ -12,40 +12,27 @@ jobs:
     steps:
       - name: Checkout source archive
         uses: actions/checkout@v4
-      - name: Extract source archive (handles URL-encoded filenames)
+      - name: Extract exact Qt source and original vector templates
         shell: pwsh
         run: |
-          $zip = Get-ChildItem -File -Filter '*.zip' | Where-Object { $_.Name.StartsWith('MAKET_296_QT6_') } | Select-Object -First 1
-          if (-not $zip) { throw 'Qt source ZIP archive not found in repository root' }
-          Write-Host "Using $($zip.Name)"
-          Expand-Archive -LiteralPath $zip.FullName -DestinationPath . -Force
-          if (-not (Test-Path 'CMakeLists.txt')) { throw 'CMakeLists.txt not found after ZIP extraction' }
-          if (-not (Test-Path 'src/main.cpp')) { throw 'Qt source code not found in ZIP' }
-      - name: Fix Qt keyword collision in archived C++ sources
+          $archive = 'MAKET_296_QT6_EXACT_SOURCE.zip'
+          if (-not (Test-Path $archive)) { throw 'Exact source archive is missing' }
+          Expand-Archive -LiteralPath $archive -DestinationPath . -Force
+          if (-not (Test-Path 'src/main.cpp')) { throw 'Qt source code not found' }
+          if (-not (Test-Path 'assets/templates/overlay_00.svg')) { throw 'Original vector template assets not found' }
+      - name: Apply full editable-object, crop and group-size editor patch
         shell: pwsh
         run: |
-          # Qt defines "slots" as a C++ macro. The original project used
-          # slots() as a function name; MSVC consequently cannot parse it.
-          Get-ChildItem src -Recurse -File | Where-Object { $_.Extension -in '.cpp','.h' } | ForEach-Object {
-            $body = [System.IO.File]::ReadAllText($_.FullName)
-            $patched = [regex]::Replace($body, '\bslots\b', 'photoSlots')
-            if ($body -cne $patched) { [System.IO.File]::WriteAllText($_.FullName, $patched, [System.Text.UTF8Encoding]::new($false)) }
-          }
-      - name: Apply DTF color, seam and stroke fixes
-        shell: pwsh
-        run: |
-          python scripts/apply_dtf_fixes.py
-          if ($LASTEXITCODE -ne 0) { throw 'DTF patch failed' }
-      - name: Apply original-PDF measured layouts to Qt engine
-        shell: pwsh
-        run: |
-          python -c "import pathlib,base64,io,tarfile; data=base64.b64decode(pathlib.Path('patches/layout_patch_scripts.tar.xz.b64').read_text().strip()); tarfile.open(fileobj=io.BytesIO(data),mode='r:xz').extractall('.',filter='data')"
-          if ($LASTEXITCODE -ne 0) { throw 'Unable to unpack precise layout code' }
-          python -X utf8 _rewrite_model.py
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to apply measured photo slots' }
-          python -X utf8 _rewrite_renderer.py
-          if ($LASTEXITCODE -ne 0) { throw 'Failed to apply vector layout and photo silhouettes' }
-          if (-not (Select-String -Quiet -LiteralPath 'src/model.cpp' -Pattern 'add(.255,.251' -SimpleMatch)) { throw 'Precise cutout layout not installed' }
+          $parts = Get-ChildItem 'patches/editor_v7_diff/*.b64' | Sort-Object Name
+          if ($parts.Count -ne 9) { throw "Expected 9 editor patch chunks, found $($parts.Count)" }
+          $b64 = (($parts | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join '')
+          [System.IO.File]::WriteAllBytes('editor_v7_src.patch.xz',[Convert]::FromBase64String($b64))
+          python -c "import lzma,pathlib; pathlib.Path('editor_v7_src.patch').write_bytes(lzma.decompress(pathlib.Path('editor_v7_src.patch.xz').read_bytes()))"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not decompress editor source patch' }
+          git apply --whitespace=nowarn editor_v7_src.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Could not apply editable editor patch' }
+          python -X utf8 scripts/prepare_assets.py
+          if ($LASTEXITCODE -ne 0) { throw 'Could not add editable SVG element IDs' }
       - name: Install Qt 6.8.3 and SVG
         uses: jurplel/install-qt-action@v4
         with:
@@ -83,11 +70,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Unable to install export validators' }
           python scripts/check_exports.py smoke
           if ($LASTEXITCODE -ne 0) { throw 'Export dimensions or alpha verification failed' }
+      - name: Test free photo objects, overlap, crop and editable layers
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force editor_smoke | Out-Null
+          $test = Start-Process -FilePath (Resolve-Path './build/MAKET_296_QT6.exe').Path -ArgumentList @('--editor-smoke','editor_smoke') -Wait -PassThru -NoNewWindow
+          if ($test.ExitCode -ne 0) { throw "Editor feature smoke test failed ($($test.ExitCode))" }
+          python scripts/check_editor_features.py editor_smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Editor feature verification failed' }
       - name: Build Qt layout and DTF print audit
         shell: pwsh
         run: |
           @'
-          add_executable(MAKET296Audit scripts/audit_generator.cpp src/model.cpp src/renderer.cpp)
+          add_executable(MAKET296Audit scripts/audit_generator.cpp src/model.cpp src/renderer.cpp resources.qrc)
           target_include_directories(MAKET296Audit PRIVATE src)
           target_link_libraries(MAKET296Audit PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Svg)
           '@ | Add-Content -Path CMakeLists.txt
@@ -110,7 +105,7 @@ jobs:
         shell: pwsh
         run: |
           @'
-          add_executable(MAKET296GuiSmoke scripts/gui_smoke.cpp src/model.cpp src/renderer.cpp src/window.cpp)
+          add_executable(MAKET296GuiSmoke scripts/gui_smoke.cpp src/model.cpp src/renderer.cpp src/window.cpp resources.qrc)
           target_include_directories(MAKET296GuiSmoke PRIVATE src)
           target_link_libraries(MAKET296GuiSmoke PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Svg)
           '@ | Add-Content -Path CMakeLists.txt
