@@ -33,6 +33,9 @@ one("src/window.cpp",
 one("src/window.cpp",
     'if(decor&&design_.decorations[active].kind==Decoration::Text)decorTextEdit_->setText(design_.decorations[active].text);else decorTextEdit_->clear();',
     'if(decor)decorTextEdit_->setText(design_.decorations[active].text);else decorTextEdit_->clear();')
+one("src/main.cpp",
+    'QString file=dir.filePath(QString("fixture_%1.jpg").arg(i+1));',
+    'QString file=dir.absoluteFilePath(QString("fixture_%1.jpg").arg(i+1));')
 # A PDF is allowed to flatten several photographs into fewer image XObjects.
 # Check actual rendered pixels in all three occupied photo areas instead.
 one("scripts/check_editor_features.py",
