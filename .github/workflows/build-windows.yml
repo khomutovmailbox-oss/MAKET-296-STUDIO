@@ -40,6 +40,15 @@ jobs:
         run: |
           python -X utf8 patches/finish_editor_v7.py
           if ($LASTEXITCODE -ne 0) { throw 'Editor finishing patch failed' }
+      - name: Apply v8 reference comparison and precision editor controls
+        shell: pwsh
+        run: |
+          python -c "import pathlib,base64,lzma; b=pathlib.Path('patches/editor_v8_accuracy_and_ux.patch.xz.b64').read_text().strip(); pathlib.Path('editor_v8.patch').write_bytes(lzma.decompress(base64.b64decode(b)))"
+          if ($LASTEXITCODE -ne 0) { throw 'V8 patch unpack failed' }
+          git apply --check editor_v8.patch
+          if ($LASTEXITCODE -ne 0) { throw 'V8 source mismatch' }
+          git apply --whitespace=nowarn editor_v8.patch
+          if ($LASTEXITCODE -ne 0) { throw 'V8 editor patch failed' }
       - name: Install Qt 6.8.3 and SVG
         uses: jurplel/install-qt-action@v4
         with:
