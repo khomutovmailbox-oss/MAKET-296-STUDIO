@@ -126,4 +126,8 @@ replace_once("src/window.cpp",
     "    if(type==0)canvas_->setPhotoSelection(photos,active);else if(type==1)canvas_->setDecorationSelection(decos,active);",
     "    if(type<0){canvas_->setPhotoSelection({},-1);canvas_->setDecorationSelection({},-1);return;}\n    if(type==0)canvas_->setPhotoSelection(photos,active);else if(type==1)canvas_->setDecorationSelection(decos,active);")
 
+replace_once("src/window.cpp",
+    "    decorColorButton_->setEnabled(!decos.isEmpty());toggleVisibleButton_->setEnabled(any);deleteObjectButton_->setEnabled(any);",
+    "    bool hasHidden=false;for(int i:photos)if(i>=0&&i<design_.photos.size()&&!design_.photos[i].visible)hasHidden=true;for(int i:decos)if(i>=0&&i<design_.decorations.size()&&!design_.decorations[i].visible)hasHidden=true;\\n    decorColorButton_->setEnabled(!decos.isEmpty());toggleVisibleButton_->setText(hasHidden?\"Показать\":\"Скрыть\");toggleVisibleButton_->setEnabled(any);deleteObjectButton_->setEnabled(any);")
+
 print("Applied editor v7 follow-up fixes.")
