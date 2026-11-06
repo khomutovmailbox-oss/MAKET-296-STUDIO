@@ -67,6 +67,11 @@ jobs:
         run: |
           python -X utf8 patches/original_reference_v8.py
           if ($LASTEXITCODE -ne 0) { throw 'Reference comparison overlay patch failed' }
+      - name: Embed offline original-vector reference for F7 comparison
+        shell: pwsh
+        run: |
+          python -X utf8 patches/reference_offline_fallback_v8.py
+          if ($LASTEXITCODE -ne 0) { throw 'Original reference fallback patch failed' }
       - name: Install Qt 6.8.3 and SVG
         uses: jurplel/install-qt-action@v4
         with:
