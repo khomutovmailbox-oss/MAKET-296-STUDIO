@@ -97,4 +97,23 @@ replace_once("scripts/check_exports.py",
     "assert abs(h - round(465/25.4*300)) <= 1",
     "assert abs(h - round(464.72/25.4*300)) <= 1")
 
+replace_once("src/renderer.cpp",
+    "void renderEditableArtwork(QPainter &p,const Maket::Design &d){",
+    "void renderEditableArtwork(QPainter &p,const Maket::Design &d,bool includeSvg=true){")
+replace_once("src/renderer.cpp",
+    "        if(obj.kind==Maket::Decoration::SvgElement){",
+    "        if(obj.kind==Maket::Decoration::SvgElement && !includeSvg){p.restore();continue;}\\n        if(obj.kind==Maket::Decoration::SvgElement){")
+replace_once("src/renderer.cpp",
+    "    if(d.letters) decorations(p,d);\\n    else if(!d.decorations.isEmpty()) renderEditableArtwork(p,d);\\n    else decorations(p,d);",
+    "    if(!d.decorations.isEmpty()) renderEditableArtwork(p,d,!d.letters);\\n    else decorations(p,d);")
+replace_once("src/window.cpp",
+    "        if(selectedDecoration_<0)return;",
+    "        if(selectedDecoration_<0 || !selectedDecorations_.contains(dec))return;")
+replace_once("src/window.cpp",
+    "        if(selected_<0)return;",
+    "        if(selected_<0 || !selectedPhotos_.contains(ph))return;")
+replace_once("src/window.cpp",
+    "connect(toggleVisibleButton_,&QPushButton::clicked,this,[this]{for(int i:canvas_->selectedDecorations())if(i>=0&&i<design_.decorations.size())design_.decorations[i].visible=!design_.decorations[i].visible;for(int i:canvas_->selectedPhotos())if(i>=0&&i<design_.photos.size())design_.photos[i].visible=!design_.photos[i].visible;modified();syncLayerList();});",
+    "connect(toggleVisibleButton_,&QPushButton::clicked,this,[this]{bool show=false;for(int i:canvas_->selectedDecorations())if(i>=0&&i<design_.decorations.size()&&!design_.decorations[i].visible)show=true;for(int i:canvas_->selectedPhotos())if(i>=0&&i<design_.photos.size()&&!design_.photos[i].visible)show=true;for(int i:canvas_->selectedDecorations())if(i>=0&&i<design_.decorations.size())design_.decorations[i].visible=show;for(int i:canvas_->selectedPhotos())if(i>=0&&i<design_.photos.size())design_.photos[i].visible=show;modified();syncLayerList();syncObjectControls();});")
+
 print("Applied editor v7 follow-up fixes.")
