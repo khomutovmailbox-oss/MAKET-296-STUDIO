@@ -61,6 +61,7 @@ jobs:
 
       - name: Native engine and actual Tk viewport smoke tests
         run: |
+          xvfb-run -a .venv/bin/python studio/tests/gui_render_burst_smoke.py
           xvfb-run -a .venv/bin/python studio/tests/gui_spatial_smoke.py\n          xvfb-run -a .venv/bin/python studio/tests/gui_delta_smoke.py
           xvfb-run -a .venv/bin/python studio/tests/gui_fast_overlay_smoke.py
           xvfb-run -a .venv/bin/python studio/tests/gui_fx_smoke.py\n          xvfb-run -a .venv/bin/python studio/tests/gui_preview_cache_smoke.py
