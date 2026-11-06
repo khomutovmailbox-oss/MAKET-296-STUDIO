@@ -1,0 +1,61 @@
+--- a/studio/studio.py
++++ b/studio/studio.py
+@@ -60,6 +60,23 @@
+         if self.process.stdout:self.process.stdout.close()
+         if self.process.stderr:self.process.stderr.close()
+ 
++class _OverlayPainter:
++    """Tag temporary canvas items, preserving existing item tags (e.g. node indices)."""
++    __slots__ = ('canvas',)
++    def __init__(self, canvas):
++        self.canvas = canvas
++    def __getattr__(self, name):
++        fn = getattr(self.canvas, name)
++        if not name.startswith('create_'):
++            return fn
++        def create(*args, **kwargs):
++            tags = kwargs.get('tags', ())
++            if isinstance(tags, str):
++                tags = (tags,)
++            kwargs['tags'] = tuple(tags) + ('vf_overlay',)
++            return fn(*args, **kwargs)
++        return create
++
+ class Studio(tk.Tk):
+     def __init__(self, engine:NativeEngine):
+         super().__init__()
+@@ -918,6 +935,18 @@
+                 for v in range(0,int(h)+1,step):
+                     py=y0+v*self.zoom
+                     if 0<=py<=c.winfo_height():c.create_line(max(0,x0),py,min(c.winfo_width(),x0+w*self.zoom),py,fill='#eaf0f6')
++        self.redraw_overlay()
++
++    def redraw_overlay(self):
++        """Update live mouse tools without destroying/rasterizing the base canvas.
++
++        Previous code did canvas.delete('all') on EVERY pointer movement, re-drawing
++        page, bitmap and grid even though only the temporary overlay had changed.
++        """
++        canvas=self.canvas
++        canvas.delete('vf_overlay')
++        if not self.data:return
++        c=_OverlayPainter(canvas)
+         for selected_obj in (o for o in self.objects() if o['id'] in self.selected_ids):
+             b=self.bbox(selected_obj)
+             if b:
+@@ -1089,13 +1118,13 @@
+             if len(self.brush_points)<30000 and (not self.brush_points or
+                abs(self.brush_points[-1][0]-x)+abs(self.brush_points[-1][1]-y)>.5):
+                 self.brush_points.append((x,y))
+-        self.redraw_canvas()
++        self.redraw_overlay()
+         if self.pending_drag[0]=='move':
+             o=self.selected_object();b=self.bbox(o) if o else None
+             if b:
+                 sx1,sy1=self.screen_coords(b[0]+(x-self.pending_drag[2]),b[1]+(y-self.pending_drag[3]))
+                 sx2,sy2=self.screen_coords(b[2]+(x-self.pending_drag[2]),b[3]+(y-self.pending_drag[3]))
+-                self.canvas.create_rectangle(sx1,sy1,sx2,sy2,outline='#00f6e4',dash=(4,4))
++                self.canvas.create_rectangle(sx1,sy1,sx2,sy2,outline='#00f6e4',dash=(4,4),tags='vf_overlay')
+ 
+     def on_up(self,e):
+         if not self.pending_drag:return
