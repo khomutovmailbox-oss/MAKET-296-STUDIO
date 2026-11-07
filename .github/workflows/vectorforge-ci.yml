@@ -1,0 +1,74 @@
+name: VectorForge — isolated Linux core and GUI tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/vectorforge-bootstrap]
+    paths:
+      - 'projects/vectorforge-pro/**'
+      - '.github/workflows/vectorforge-ci.yml'
+  pull_request:
+    paths:
+      - 'projects/vectorforge-pro/**'
+      - '.github/workflows/vectorforge-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  linux-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: projects/vectorforge-pro
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify VectorForge sources are present
+        run: |
+          test -f CMakeLists.txt || {
+            echo "::error::First place the VectorForge source tree in projects/vectorforge-pro/."
+            exit 1
+          }
+
+      - name: Install native, testing and GUI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build libarchive-dev libssl-dev libxml2-dev libpng-dev \
+            libboost-json1.83-dev python3-venv python3-tk xvfb inkscape
+
+      - name: Configure and build C++20
+        run: |
+          cmake -S . -B .build -G Ninja -DCMAKE_BUILD_TYPE=Release -DVFORGE_BUILD_QT=OFF
+          cmake --build .build --parallel 3
+
+      - name: Native C++ tests
+        run: ctest --test-dir .build --output-on-failure
+
+      - name: Prepare isolated Python test environment
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check \
+            -r studio/requirements.txt numpy cairosvg
+
+      - name: Studio IPC and importer integration tests
+        run: |
+          .venv/bin/python -m unittest discover -s studio/tests -p 'test_*.py' -v
+          VF_PROBE="$PWD/.build/vforge_probe" .venv/bin/python \
+            -m unittest discover -s compat -p 'test_*.py' -v
+
+      - name: Native engine and actual Tk viewport smoke tests
+        run: |
+          xvfb-run -a .venv/bin/python studio/tests/gui_render_burst_smoke.py
+          xvfb-run -a .venv/bin/python studio/tests/gui_spatial_smoke.py\n          xvfb-run -a .venv/bin/python studio/tests/gui_delta_smoke.py
+          xvfb-run -a .venv/bin/python studio/tests/gui_fast_overlay_smoke.py
+          xvfb-run -a .venv/bin/python studio/tests/gui_fx_smoke.py
+          xvfb-run -a .venv/bin/python studio/tests/gui_inprocess_fx_smoke.py
+          xvfb-run -a .venv/bin/python studio/tests/gui_tiled_viewport_smoke.py\n          xvfb-run -a .venv/bin/python studio/tests/gui_preview_cache_smoke.py
+
+      - name: Repository isolation check
+        run: |
+          test ! -e ../../build
+          echo "Existing MAKET-296 build files remain untouched."
